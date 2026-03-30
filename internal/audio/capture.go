@@ -25,12 +25,29 @@ const (
 
 // Capturer manages microphone capture and the recording state machine.
 type Capturer struct {
-	mu     sync.Mutex
-	state  State
-	buf    []float32
+	mu       sync.Mutex
+	state    State
+	buf      []float32
+	deviceID *malgo.DeviceID // nil = system default
 
 	ctx    *malgo.AllocatedContext
 	device *malgo.Device
+}
+
+// ListDevices returns all available capture devices.
+func (c *Capturer) ListDevices() ([]malgo.DeviceInfo, error) {
+	devices, err := c.ctx.Devices(malgo.Capture)
+	if err != nil {
+		return nil, fmt.Errorf("audio: list devices: %w", err)
+	}
+	return devices, nil
+}
+
+// SetDevice selects a specific capture device by ID. Pass nil to use the system default.
+func (c *Capturer) SetDevice(id *malgo.DeviceID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.deviceID = id
 }
 
 // New initializes a Capturer and the underlying miniaudio context.
@@ -65,6 +82,9 @@ func (c *Capturer) Start() error {
 	deviceConfig.Capture.Format = malgo.FormatF32
 	deviceConfig.Capture.Channels = channels
 	deviceConfig.SampleRate = sampleRate
+	if c.deviceID != nil {
+		deviceConfig.Capture.DeviceID = c.deviceID.Pointer()
+	}
 
 	callbacks := malgo.DeviceCallbacks{
 		Data: c.onData,
@@ -88,19 +108,30 @@ func (c *Capturer) Start() error {
 // Stop ends capture and transitions RECORDING → PROCESSING.
 // Returns a copy of the captured sample buffer.
 // Call SetIdle() after transcription completes.
+//
+// The device is stopped OUTSIDE the mutex to avoid a deadlock: miniaudio's
+// device.Stop() waits for the audio callback to finish, but onData also
+// acquires the mutex — holding it during Stop() would cause a deadlock.
 func (c *Capturer) Stop() ([]float32, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.state != StateRecording {
+		c.mu.Unlock()
 		return nil, fmt.Errorf("audio: cannot stop, current state: %d", c.state)
 	}
-
-	c.stopDevice()
+	// Mark as processing so onData stops appending, then release before
+	// calling device.Stop() to prevent the deadlock.
 	c.state = StateProcessing
+	dev := c.device
+	c.device = nil
+	c.mu.Unlock()
 
+	dev.Stop()
+	dev.Uninit()
+
+	c.mu.Lock()
 	out := make([]float32, len(c.buf))
 	copy(out, c.buf)
+	c.mu.Unlock()
 	return out, nil
 }
 
@@ -108,14 +139,18 @@ func (c *Capturer) Stop() ([]float32, error) {
 // Safe to call in any state — no-op if not recording.
 func (c *Capturer) Cancel() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.state != StateRecording {
+		c.mu.Unlock()
 		return
 	}
-	c.stopDevice()
-	c.buf = c.buf[:0]
 	c.state = StateIdle
+	c.buf = c.buf[:0]
+	dev := c.device
+	c.device = nil
+	c.mu.Unlock()
+
+	dev.Stop()
+	dev.Uninit()
 }
 
 // SetIdle transitions PROCESSING → IDLE. Call after transcription completes.
@@ -128,9 +163,13 @@ func (c *Capturer) SetIdle() {
 // Close releases all miniaudio resources.
 func (c *Capturer) Close() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.device != nil {
-		c.stopDevice()
+	dev := c.device
+	c.device = nil
+	c.mu.Unlock()
+
+	if dev != nil {
+		dev.Stop()
+		dev.Uninit()
 	}
 	_ = c.ctx.Uninit()
 	c.ctx.Free()
@@ -157,12 +196,3 @@ func (c *Capturer) onData(_, pInputSample []byte, frameCount uint32) {
 	c.mu.Unlock()
 }
 
-// stopDevice uninitializes the device. Caller must hold c.mu.
-func (c *Capturer) stopDevice() {
-	if c.device == nil {
-		return
-	}
-	c.device.Stop()
-	c.device.Uninit()
-	c.device = nil
-}

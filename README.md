@@ -4,10 +4,11 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 
 ## Features
 
-- **Toggle recording** — press to start, press again to stop and paste
-- **Cancel recording** — discard a recording mid-way with Esc
+- **Toggle recording** — press ⌥Space to start, press again to stop and paste
+- **Cancel recording** — press Esc to discard mid-recording, nothing is pasted
+- **Cycle modes** — press ⌥⇧K to switch between raw, cleanup, formal, bullets, and custom modes
 - **ES → EN translation** — Whisper's native translation, no LLM needed
-- **LLM post-processing** — optional Ollama integration for cleanup, formatting, and custom modes (formal tone, bullet points, code comments, etc.)
+- **LLM post-processing** — optional Ollama integration for cleanup, formatting, and custom modes
 - **Custom modes** — define your own prompts in `config.yaml`, cycle through them with a hotkey
 - **Hot-reloadable config** — change hotkeys or models without restarting
 - **No cloud, no subscription** — everything runs on your machine
@@ -17,11 +18,14 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 | Component | Technology |
 |---|---|
 | Language | Go |
-| Speech-to-text | [whisper.cpp](https://github.com/ggerganov/whisper.cpp) |
+| Speech-to-text | [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (Metal GPU accelerated) |
 | Audio capture | [malgo](https://github.com/gen2brain/malgo) (miniaudio — no Homebrew required) |
+| Global hotkeys | [golang.design/x/hotkey](https://pkg.go.dev/golang.design/x/hotkey) |
+| Clipboard | CGo + NSPasteboard (AppKit) + CGEventPost |
+| Menubar icon | [fyne.io/systray](https://github.com/fyne-io/systray) |
 | LLM post-processing | [Ollama](https://ollama.com) (local, optional) |
-| Native macOS UI | [DarwinKit](https://github.com/progrium/darwinkit) |
-| Config | `config.yaml` with live file watching |
+| Native macOS UI | [DarwinKit](https://github.com/progrium/darwinkit) (Phase 9) |
+| Config | `config.yaml` with live file watching (Phase 5) |
 
 ## Hotkeys (default)
 
@@ -31,7 +35,7 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 | Cancel recording | Esc |
 | Cycle mode | ⌥⇧K |
 
-All hotkeys are configurable in `config.yaml`.
+All hotkeys are configurable in `config.yaml` (Phase 5).
 
 ## Requirements
 
@@ -55,7 +59,7 @@ cd go-whisper
 make whisper
 ```
 
-This compiles whisper.cpp into static libraries inside `third_party/whisper.cpp/build/`. Only needed once (or after updating the submodule).
+Compiles whisper.cpp into static libraries inside `third_party/whisper.cpp/build/`. Only needed once (or after updating the submodule).
 
 ### 3. Download a model
 
@@ -65,17 +69,19 @@ make download-model
 
 Downloads `ggml-small.bin` (~465MB) to `~/.config/gowhisper/models/`. Recommended for a good balance of speed and accuracy with Spanish and English.
 
-Available model sizes (configure in `config.yaml`):
+| Model | Size | Notes |
+|---|---|---|
+| tiny | ~75MB | Fastest, lower accuracy |
+| small | ~465MB | Recommended |
+| medium | ~1.5GB | Most accurate, slower |
 
-| Model | Size | Speed | Accuracy |
-|---|---|---|---|
-| tiny | ~75MB | Fastest | Lower |
-| small | ~465MB | Good | Recommended |
-| medium | ~1.5GB | Slower | Highest |
-
-### 4. Build and run
+### 4. Run
 
 ```bash
+# Development (faster — no compile step)
+make dev
+
+# Or build a binary and run it
 make run
 ```
 
@@ -83,9 +89,22 @@ On first launch, macOS will prompt for:
 - **Microphone access** — required to capture your voice
 - **Accessibility access** — required for global hotkeys and simulated paste (System Settings → Privacy & Security → Accessibility)
 
+> **Note:** When using `make dev`, mic access is granted to your terminal app, not the binary. If recording captures only silence, open System Settings → Privacy & Security → Microphone and ensure your terminal is listed and enabled. Use `make rectest` to verify mic access before running the full app.
+
+The app lives in your menubar. You'll see `⬜ Raw` when idle.
+
+## Usage
+
+1. Press **⌥Space** — icon changes to `🔴 Raw`, recording starts
+2. Speak
+3. Press **⌥Space** again — icon changes to `⏳ Raw`, transcription runs
+4. Text is pasted into whatever window was active — icon returns to `⬜ Raw`
+
+Press **Esc** at any point while recording to cancel (nothing is pasted).
+
 ## Configuration
 
-The config file lives at `~/.config/gowhisper/config.yaml` and is created on first run. Example:
+Config lives at `~/.config/gowhisper/config.yaml` (Phase 5 — coming soon):
 
 ```yaml
 model: small
@@ -118,35 +137,36 @@ modes:
     prompt: "Convert this dictation into a concise bullet point list. Return only the result."
 ```
 
-Changes to `config.yaml` are picked up live — no restart needed.
-
 ## Makefile Targets
 
 ```bash
 make whisper          # Build whisper.cpp static libraries (once)
 make build            # Compile the Go binary into GoWhisper.app
-make run              # Build and run
+make run              # Build and run the compiled binary
+make dev              # Run directly with go run (faster for development)
 make test             # Run all tests
 make install          # Install GoWhisper.app to /Applications
 make download-model   # Download ggml-small.bin to ~/.config/gowhisper/models/
+make rectest          # Record 5s to /tmp/rectest.wav — diagnose mic access (DEV="name" to pick device)
 make clean            # Remove build artifacts
 ```
 
 ## Project Structure
 
 ```
-cmd/gowhisper/        # Main entry point
+cmd/gowhisper/        # Main entry point and event loop
+cmd/rectest/          # Standalone mic recording test (5s WAV capture)
 internal/
-  audio/              # Mic capture, recording state machine
-  transcribe/         # Whisper.cpp integration
-  hotkey/             # Global hotkey listener
-  clipboard/          # Clipboard injection and paste
-  config/             # Config loading and file watcher
-  llm/                # Ollama HTTP client
-  ui/                 # Native macOS UI (DarwinKit)
+  audio/              # Mic capture, recording state machine, device selection
+  transcribe/         # Whisper.cpp integration, TranscribeRequest
+  hotkey/             # Global hotkeys (toggle always-on, Esc only while recording)
+  clipboard/          # NSPasteboard save/restore + Cmd+V simulation via CGo
+  config/             # Config loading and file watcher (Phase 5)
+  llm/                # Ollama HTTP client (Phase 6)
+  ui/                 # Menubar tray icon + microphone device submenu
 third_party/
   whisper.cpp/        # whisper.cpp source (git submodule)
-GoWhisper.app/        # macOS app bundle
+GoWhisper.app/        # macOS app bundle with Info.plist
 phases/               # Development plan (phase-by-phase)
 ```
 
@@ -154,9 +174,9 @@ phases/               # Development plan (phase-by-phase)
 
 | Phase | Description | Status |
 |---|---|---|
-| 1 | Audio capture | Done |
-| 2 | Whisper.cpp integration | In Progress |
-| 3 | Hotkey & clipboard | Not started |
+| 1 | Audio capture | ✅ Done |
+| 2 | Whisper.cpp integration | ✅ Done |
+| 3 | Hotkey & clipboard | ✅ Done |
 | 4 | Translation flow | Not started |
 | 5 | Config & shortcuts | Not started |
 | 6 | Ollama LLM post-processing | Not started |

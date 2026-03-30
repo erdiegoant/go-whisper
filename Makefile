@@ -8,7 +8,7 @@ INCLUDE_PATH  := $(abspath $(WHISPER_SRC)/include):$(abspath $(WHISPER_SRC)/ggml
 LIBRARY_PATH  := $(abspath $(WHISPER_BUILD)/src):$(abspath $(WHISPER_BUILD)/ggml/src):$(abspath $(WHISPER_BUILD)/ggml/src/ggml-metal):$(abspath $(WHISPER_BUILD)/ggml/src/ggml-blas)
 
 # macOS Metal/BLAS frameworks required by ggml
-EXT_LDFLAGS   := -lggml-metal -lggml-blas -framework Foundation -framework Metal -framework MetalKit -framework Accelerate
+EXT_LDFLAGS   := -lggml-metal -lggml-blas -framework Foundation -framework Metal -framework MetalKit -framework Accelerate -framework ApplicationServices -framework CoreGraphics
 
 CGO_ENV       := CGO_ENABLED=1 \
                  C_INCLUDE_PATH="$(INCLUDE_PATH)" \
@@ -36,9 +36,17 @@ build:
 	$(CGO_ENV) go build $(BUILD_FLAGS) -o $(APP_BUNDLE) ./cmd/$(BINARY)/
 	@echo "Binary: $(APP_BUNDLE)"
 
-## Build and run
+## Build and run the compiled binary
 run: build
 	$(APP_BUNDLE)
+
+## Run directly with go run (faster for development — no compile step)
+dev:
+	$(CGO_ENV) go run $(BUILD_FLAGS) ./cmd/gowhisper/
+
+## Record 5s and save /tmp/rectest.wav — pass DEV="name" to pick a device
+rectest:
+	$(CGO_ENV) go run $(BUILD_FLAGS) ./cmd/rectest/ $(DEV)
 
 ## Run tests
 test:

@@ -2,81 +2,177 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
-	"time"
 
 	"github.com/erdiegoant/gowhisper/internal/audio"
+	"github.com/erdiegoant/gowhisper/internal/clipboard"
+	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
 	"github.com/erdiegoant/gowhisper/internal/transcribe"
+	"github.com/erdiegoant/gowhisper/internal/ui"
 )
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-}
+const currentMode = "Raw" // placeholder until Phase 7 mode system
 
-func run() error {
+func main() {
 	transcribe.SuppressLogs()
 
+	// Step 3 — Accessibility permission check.
+	if !ghotkey.CheckAccessibility() {
+		fmt.Println("GoWhisper needs Accessibility access.")
+		fmt.Println("Please grant it in System Settings → Privacy & Security → Accessibility, then relaunch.")
+		// AXIsProcessTrustedWithOptions with kAXTrustedCheckOptionPrompt:YES
+		// already opened the dialog; we exit cleanly so the user can grant and relaunch.
+		os.Exit(0)
+	}
+
+	// Load Whisper model.
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("cannot resolve home dir: %w", err)
+		log.Fatalf("cannot resolve home dir: %v", err)
 	}
-	absModel := filepath.Join(home, ".config", "gowhisper", "models", "ggml-small.bin")
+	modelPath := filepath.Join(home, ".config", "gowhisper", "models", "ggml-small.bin")
 
-	fmt.Println("GoWhisper — Phase 2 test")
-	fmt.Printf("Loading model: %s\n", absModel)
-
-	tr, err := transcribe.New(absModel)
+	log.Printf("loading model: %s", modelPath)
+	tr, err := transcribe.New(modelPath)
 	if err != nil {
-		return fmt.Errorf("failed to load model: %w", err)
+		log.Fatalf("failed to load model: %v", err)
 	}
 	defer tr.Close()
+	log.Println("model loaded")
 
-	fmt.Println("Model loaded. Recording for 5 seconds — speak now...")
-
+	// Init audio capturer.
 	capturer, err := audio.New()
 	if err != nil {
-		return fmt.Errorf("failed to init audio: %w", err)
+		log.Fatalf("failed to init audio: %v", err)
 	}
 	defer capturer.Close()
 
-	if err := capturer.Start(); err != nil {
-		return fmt.Errorf("failed to start recording: %w", err)
-	}
+	// Start the systray on the main goroutine — this call blocks until Quit.
+	// Hotkeys are registered inside onReady, from a background goroutine, so
+	// that golang.design/x/hotkey's dispatch_sync(main_queue) does not deadlock.
+	tray := ui.New()
+	tray.Run(func() {
+		// Build the microphone submenu from available capture devices.
+		if devices, err := capturer.ListDevices(); err == nil {
+			names := make([]string, 0, len(devices)+1)
+			names = append(names, "Default")
+			for _, d := range devices {
+				names = append(names, d.Name())
+			}
+			tray.AddDeviceMenu(names, func(name string) {
+				if name == "Default" {
+					capturer.SetDevice(nil)
+					log.Println("mic: using system default device")
+					return
+				}
+				for i := range devices {
+					if devices[i].Name() == name {
+						id := devices[i].ID
+						capturer.SetDevice(&id)
+						log.Printf("mic: selected %q", name)
+						return
+					}
+				}
+			})
+		} else {
+			log.Printf("mic: could not list devices: %v", err)
+		}
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case <-time.After(5 * time.Second):
-	case <-sig:
-		fmt.Println("\nCancelled.")
-		capturer.Cancel()
-		return nil
-	}
-
-	samples, err := capturer.Stop()
-	if err != nil {
-		return fmt.Errorf("failed to stop: %w", err)
-	}
-	fmt.Printf("Captured %d samples (%.1fs). Transcribing...\n", len(samples), float64(len(samples))/16000.0)
-
-	result, err := tr.Transcribe(transcribe.TranscribeRequest{
-		Samples:  samples,
-		Language: "auto",
+		go func() {
+			hkManager, err := ghotkey.New()
+			if err != nil {
+				log.Fatalf("failed to register hotkeys: %v", err)
+			}
+			defer hkManager.Close()
+			runEventLoop(capturer, tr, hkManager, tray)
+		}()
 	})
-	capturer.SetIdle()
+}
 
-	if err != nil {
-		fmt.Printf("No speech detected: %v\n", err)
-		return nil
+// runEventLoop handles hotkey actions and drives the recording state machine.
+func runEventLoop(
+	capturer *audio.Capturer,
+	tr *transcribe.Transcriber,
+	hkManager *ghotkey.Manager,
+	tray *ui.Tray,
+) {
+	tray.SetIdle(currentMode)
+	log.Println("ready — ⌥Space to record, Esc to cancel, ⌥⇧K to change mode")
+
+	for action := range hkManager.C() {
+		switch action {
+		case ghotkey.ActionToggle:
+			handleToggle(capturer, tr, hkManager, tray)
+
+		case ghotkey.ActionCancel:
+			capturer.Cancel()
+			hkManager.DisableCancel()
+			tray.SetIdle(currentMode)
+			log.Println("recording cancelled")
+
+		case ghotkey.ActionMode:
+			// Mode cycling — full implementation in Phase 7.
+			log.Println("mode: (not yet implemented)")
+		}
 	}
+}
 
-	fmt.Printf("\nTranscript: %s\n", result)
-	return nil
+// handleToggle manages the IDLE→RECORDING→PROCESSING→IDLE transition.
+func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManager *ghotkey.Manager, tray *ui.Tray) {
+	switch capturer.CurrentState() {
+	case audio.StateIdle:
+		if err := capturer.Start(); err != nil {
+			log.Printf("failed to start recording: %v", err)
+			return
+		}
+		hkManager.EnableCancel()
+		tray.SetRecording(currentMode)
+		log.Println("recording started")
+
+	case audio.StateRecording:
+		samples, err := capturer.Stop()
+		if err != nil {
+			log.Printf("failed to stop recording: %v", err)
+			return
+		}
+		hkManager.DisableCancel()
+		tray.SetProcessing(currentMode)
+
+		var sum float64
+		for _, s := range samples {
+			sum += float64(s) * float64(s)
+		}
+		rms := 0.0
+		if len(samples) > 0 {
+			rms = sum / float64(len(samples))
+		}
+		log.Printf("captured %d samples — RMS energy: %.6f — transcribing...", len(samples), rms)
+
+		// Transcribe and paste in a goroutine so the hotkey loop stays responsive.
+		go func() {
+			result, err := tr.Transcribe(transcribe.TranscribeRequest{
+				Samples:  samples,
+				Language: "auto",
+			})
+			capturer.SetIdle()
+			tray.SetIdle(currentMode)
+
+			if err != nil {
+				log.Printf("transcription: %v", err)
+				return
+			}
+
+			log.Printf("transcript: %s", result)
+
+			if err := clipboard.Paste(result); err != nil {
+				log.Printf("paste failed: %v", err)
+			}
+		}()
+
+	case audio.StateProcessing:
+		// Ignore — transcription already in flight.
+		log.Println("busy — transcription in progress")
+	}
 }
