@@ -12,14 +12,19 @@ import (
 	"github.com/erdiegoant/gowhisper/internal/transcribe"
 )
 
-const modelPath = "~/.config/gowhisper/models/ggml-small.bin"
-
 func main() {
-	// Expand ~ in model path.
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	transcribe.SuppressLogs()
+
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cannot resolve home dir: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("cannot resolve home dir: %w", err)
 	}
 	absModel := filepath.Join(home, ".config", "gowhisper", "models", "ggml-small.bin")
 
@@ -28,41 +33,36 @@ func main() {
 
 	tr, err := transcribe.New(absModel)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load model: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to load model: %w", err)
 	}
 	defer tr.Close()
+
 	fmt.Println("Model loaded. Recording for 5 seconds — speak now...")
 
 	capturer, err := audio.New()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to init audio: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to init audio: %w", err)
 	}
 	defer capturer.Close()
 
 	if err := capturer.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to start recording: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to start recording: %w", err)
 	}
 
-	// Handle Cmd+C for early cancel.
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
 	select {
 	case <-time.After(5 * time.Second):
-		// Normal stop.
 	case <-sig:
 		fmt.Println("\nCancelled.")
 		capturer.Cancel()
-		return
+		return nil
 	}
 
 	samples, err := capturer.Stop()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to stop: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to stop: %w", err)
 	}
 	fmt.Printf("Captured %d samples (%.1fs). Transcribing...\n", len(samples), float64(len(samples))/16000.0)
 
@@ -70,12 +70,13 @@ func main() {
 		Samples:  samples,
 		Language: "auto",
 	})
+	capturer.SetIdle()
+
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "transcription failed: %v\n", err)
-		capturer.SetIdle()
-		os.Exit(1)
+		fmt.Printf("No speech detected: %v\n", err)
+		return nil
 	}
 
-	capturer.SetIdle()
 	fmt.Printf("\nTranscript: %s\n", result)
+	return nil
 }

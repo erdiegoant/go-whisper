@@ -73,8 +73,8 @@ func (t *Transcriber) Transcribe(req TranscribeRequest) (string, error) {
 	}
 
 	result := strings.TrimSpace(sb.String())
-	if result == "" {
-		return "", fmt.Errorf("transcribe: empty result (silence or unrecognised audio)")
+	if result == "" || result == "[BLANK_AUDIO]" || result == "(music)" || result == "(Music)" {
+		return "", fmt.Errorf("transcribe: no speech detected")
 	}
 	return result, nil
 }

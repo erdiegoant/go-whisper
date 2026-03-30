@@ -7,7 +7,7 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 | Phase | Title | Status | File |
 |---|---|---|---|
 | 1 | Foundation & Audio Capture | [x] Done | [phase-1-audio-capture.md](phases/phase-1-audio-capture.md) |
-| 2 | Whisper.cpp Integration | [~] In Progress | [phase-2-whisper-integration.md](phases/phase-2-whisper-integration.md) |
+| 2 | Whisper.cpp Integration | [x] Done | [phase-2-whisper-integration.md](phases/phase-2-whisper-integration.md) |
 | 3 | Hotkey & Clipboard | [ ] Not Started | [phase-3-hotkey-clipboard.md](phases/phase-3-hotkey-clipboard.md) |
 | 4 | Translation Flow | [ ] Not Started | [phase-4-translation.md](phases/phase-4-translation.md) |
 | 5 | Config & Shortcut Customization | [ ] Not Started | [phase-5-config-shortcuts.md](phases/phase-5-config-shortcuts.md) |

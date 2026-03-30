@@ -1,6 +1,6 @@
 # Phase 2 — Whisper.cpp Integration
 
-**Status:** [~] In Progress
+**Status:** [x] Done
 **Depends on:** Phase 1
 
 Wire the audio buffer into the whisper.cpp Go bindings.
