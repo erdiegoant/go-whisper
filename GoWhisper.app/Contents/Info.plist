@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>GoWhisper</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>GoWhisper</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>com.erdiegoant.gowhisper</string>
+
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+
+    <key>CFBundleExecutable</key>
+    <string>gowhisper</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleSignature</key>
+    <string>????</string>
+
+    <!-- Hide from Dock — menubar-only app -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- Required for microphone access -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>GoWhisper needs microphone access to capture your voice for transcription and translation.</string>
+
+    <!-- Required for global hotkeys and simulated paste -->
+    <key>NSAccessibilityUsageDescription</key>
+    <string>GoWhisper needs Accessibility access to register global hotkeys and paste transcribed text into other apps.</string>
+
+    <!-- Required for desktop notifications -->
+    <key>NSUserNotificationAlertStyle</key>
+    <string>alert</string>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+
+    <key>NSSupportsSuddenTermination</key>
+    <false/>
+</dict>
+</plist>

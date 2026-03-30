@@ -1,0 +1,4 @@
+github.com/gen2brain/malgo v0.11.24 h1:hHcIJVfzWcEDHFdPl5Dl/CUSOjzOleY0zzAV8Kx+imE=
+github.com/gen2brain/malgo v0.11.24/go.mod h1:f9TtuN7DVrXMiV/yIceMeWpvanyVzJQMlBecJFVMxww=
+github.com/ggerganov/whisper.cpp/bindings/go v0.0.0-20260329120436-95ea8f9bfb03 h1:5WxQk9y9BkGbTijQ43yMCGvj1ilkf7kqfTloqWJffnQ=
+github.com/ggerganov/whisper.cpp/bindings/go v0.0.0-20260329120436-95ea8f9bfb03/go.mod h1:qyHjS/50ORo01H0NsuEEGsQR9VCtOcEye0gUl2sx1s8=

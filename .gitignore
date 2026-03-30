@@ -1,0 +1,16 @@
+# Build output
+GoWhisper.app/Contents/MacOS/gowhisper
+
+# Models (large binary files — download via make download-model)
+models/
+~/.config/gowhisper/models/
+
+# whisper.cpp cmake build artifacts
+third_party/whisper.cpp/build/
+
+# Go
+*.test
+*.out
+
+# macOS
+.DS_Store
