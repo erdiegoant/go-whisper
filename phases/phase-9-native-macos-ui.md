@@ -1,6 +1,6 @@
 # Phase 9 — Native macOS UI (DarwinKit)
 
-**Status:** [ ] Not Started
+**Status:** ⏸ Postponed — work in progress on branch `feature/swiftui-rewrite` (see bottom of that branch's version of this file for details)
 **Depends on:** Phase 8
 
 Replace the placeholder tray icon with a proper native macOS UI. **Do not start until Phase 8 is stable.**

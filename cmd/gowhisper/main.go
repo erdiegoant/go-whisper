@@ -335,9 +335,8 @@ func handleToggle(
 ) {
 	switch capturer.CurrentState() {
 	case audio.StateIdle:
-		// Play start cue synchronously BEFORE the mic opens so it isn't captured.
 		if cfg.SoundEnabled() {
-			sound.PlaySync(sound.Start)
+			sound.Play(sound.Start)
 		}
 		if err := capturer.Start(); err != nil {
 			log.Printf("failed to start recording: %v", err)

@@ -8,7 +8,7 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 - **Cancel recording** — press Esc to discard mid-recording, nothing is pasted
 - **Cycle modes** — press ⌥⇧K to switch between Standard, Translate, and custom modes
 - **ES → EN translation** — Whisper's native translation, no LLM needed
-- **LLM post-processing** — optional Claude API integration for cleanup, formatting, and custom prompts
+- **LLM post-processing** — optional cleanup via Claude API or a local Ollama model (no API key needed)
 - **Custom modes** — define your own prompts in `config.yaml`, cycle through them with a hotkey or pick from the tray menu
 - **Hot-reloadable config** — change hotkeys or models without restarting
 - **No cloud, no subscription** — everything runs on your machine
@@ -23,7 +23,7 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 | Global hotkeys | [golang.design/x/hotkey](https://pkg.go.dev/golang.design/x/hotkey) |
 | Clipboard | CGo + NSPasteboard (AppKit) + CGEventPost |
 | Menubar icon | [fyne.io/systray](https://github.com/fyne-io/systray) |
-| LLM post-processing | Claude API via `net/http` (optional, key via env or config) |
+| LLM post-processing | Claude API or local Ollama — both via `net/http`, both optional |
 | Native macOS UI | [DarwinKit](https://github.com/progrium/darwinkit) (Phase 9) |
 | Config | `config.yaml` with live file watching (Phase 5) |
 
@@ -42,7 +42,8 @@ All hotkeys are configurable in `config.yaml` (Phase 5).
 - macOS 13.0+
 - [Xcode Command Line Tools](https://developer.apple.com/xcode/resources/) — `xcode-select --install`
 - [cmake](https://cmake.org) — `brew install cmake`
-- Claude API key (optional, for LLM transcript cleanup — set `ANTHROPIC_API_KEY` or add to `config.yaml`)
+- Claude API key (optional, for cloud LLM cleanup — set `ANTHROPIC_API_KEY` or add to `config.yaml`)
+- [Ollama](https://ollama.com) (optional, alternative to Claude — local cleanup with no API key or internet)
 
 ## Getting Started
 
@@ -112,10 +113,20 @@ language: auto
 models_dir: "~/.config/gowhisper/models"
 max_recording_seconds: 120
 
+# LLM cleanup — pick one backend or omit both to disable cleanup entirely.
+# If both are set, Ollama takes priority.
+
+# Option A: Claude API (cloud, requires API key)
 claude:
   api_key: ""             # leave empty to use ANTHROPIC_API_KEY env var
   model: "claude-haiku-4-5-20251001"
   timeout_seconds: 15
+
+# Option B: Ollama (local, no API key required)
+# ollama:
+#   model: "llama3.2:3b"           # any model you have pulled locally
+#   host: "http://localhost:11434" # optional, this is the default
+#   timeout_seconds: 30
 
 hotkeys:
   toggle_recording: "option+space"
@@ -133,6 +144,24 @@ hotkeys:
 #     language: auto
 #     prompt: "Convert this dictation into a concise bullet point list. Return only the result."
 ```
+
+### Using Ollama for local cleanup
+
+```bash
+# Install Ollama
+brew install ollama
+
+# Pull a model (pick one)
+ollama pull llama3.2:3b    # ~2GB — fast, good quality
+ollama pull phi4-mini      # ~2.5GB — fast, good quality
+ollama pull mistral:7b     # ~4GB — slower, better quality
+
+# Add to config.yaml (comment out the claude block if present)
+ollama:
+  model: "llama3.2:3b"
+```
+
+All models run with Metal GPU acceleration on Apple Silicon. No internet connection required after the initial model download.
 
 All changes are applied live on save — no restart required.
 
@@ -180,9 +209,10 @@ phases/               # Development plan (phase-by-phase)
 | 5 | Config & shortcuts | ✅ Done |
 | 6 | LLM transcript cleanup (Claude API) | ✅ Done |
 | 7 | Custom modes | ✅ Done |
-| 8 | Polish & reliability | Not started |
-| 9 | Native macOS UI (DarwinKit) | Not started |
-| 10 | Optional extras | Not started |
+| 8 | Polish & reliability | ✅ Done |
+| 9 | Native macOS UI (SwiftUI) | ⏸ Postponed |
+| 10 | Local LLM backend (Ollama) | Not started |
+| 11 | Optional extras | Not started |
 
 ## License
 
