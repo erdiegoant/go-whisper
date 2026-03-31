@@ -111,6 +111,46 @@ func TestApplyDefaults_doesNotOverrideSet(t *testing.T) {
 	}
 }
 
+// --- applyDefaults: sound_enabled / notifications_enabled ---
+
+func TestApplyDefaults_soundAndNotificationsDefaultTrue(t *testing.T) {
+	c := raw{} // nil *bool fields
+	applyDefaults(&c)
+	if c.SoundEnabled == nil || !*c.SoundEnabled {
+		t.Error("expected SoundEnabled to default to true")
+	}
+	if c.NotificationsEnabled == nil || !*c.NotificationsEnabled {
+		t.Error("expected NotificationsEnabled to default to true")
+	}
+}
+
+func TestApplyDefaults_soundExplicitFalsePreserved(t *testing.T) {
+	f := false
+	c := raw{SoundEnabled: &f}
+	applyDefaults(&c)
+	if c.SoundEnabled == nil || *c.SoundEnabled {
+		t.Error("expected explicit false to be preserved for SoundEnabled")
+	}
+}
+
+func TestApplyDefaults_notificationsExplicitFalsePreserved(t *testing.T) {
+	f := false
+	c := raw{NotificationsEnabled: &f}
+	applyDefaults(&c)
+	if c.NotificationsEnabled == nil || *c.NotificationsEnabled {
+		t.Error("expected explicit false to be preserved for NotificationsEnabled")
+	}
+}
+
+func TestApplyDefaults_soundExplicitTruePreserved(t *testing.T) {
+	v := true
+	c := raw{SoundEnabled: &v}
+	applyDefaults(&c)
+	if c.SoundEnabled == nil || !*c.SoundEnabled {
+		t.Error("expected explicit true to be preserved for SoundEnabled")
+	}
+}
+
 // --- combosEqual ---
 
 func TestCombosEqual(t *testing.T) {

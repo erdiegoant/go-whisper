@@ -3,19 +3,53 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
+	"gopkg.in/natefinch/lumberjack.v2"
+
 	"github.com/erdiegoant/gowhisper/internal/audio"
+	"github.com/erdiegoant/gowhisper/internal/chunk"
 	"github.com/erdiegoant/gowhisper/internal/clipboard"
 	"github.com/erdiegoant/gowhisper/internal/config"
 	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
 	"github.com/erdiegoant/gowhisper/internal/llm"
 	"github.com/erdiegoant/gowhisper/internal/mode"
+	"github.com/erdiegoant/gowhisper/internal/notify"
+	"github.com/erdiegoant/gowhisper/internal/sound"
 	"github.com/erdiegoant/gowhisper/internal/transcribe"
 	"github.com/erdiegoant/gowhisper/internal/ui"
 )
+
+// setupLogging configures the default log package and slog to write to both
+// stderr and a rotating log file at configDir/gowhisper.log.
+// Returns a closer that must be called on shutdown.
+func setupLogging(configDir, logLevel string) io.Closer {
+	logPath := filepath.Join(configDir, "gowhisper.log")
+	roller := &lumberjack.Logger{
+		Filename:   logPath,
+		MaxSize:    10, // MB
+		MaxBackups: 3,
+		Compress:   false,
+	}
+
+	// Route all existing log.Printf calls to stderr + file.
+	log.SetOutput(io.MultiWriter(os.Stderr, roller))
+	log.SetFlags(log.LstdFlags)
+
+	// Set up slog with a JSON handler writing to the file only (no duplicate JSON on stderr).
+	level := slog.LevelInfo
+	if logLevel == "debug" {
+		level = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(roller, &slog.HandlerOptions{Level: level})))
+
+	fmt.Printf("log file: %s\n", logPath)
+	return roller
+}
 
 func main() {
 	var configPath string
@@ -46,8 +80,19 @@ func main() {
 	}
 	defer cfg.Close()
 
-	log.Printf("loading model: %s", cfg.ModelPath())
-	tr, err := transcribe.New(cfg.ModelPath())
+	// Start file logging now that we have the config dir and log level.
+	logCloser := setupLogging(cfg.Dir(), cfg.LogLevel())
+	defer logCloser.Close()
+
+	// Model existence check — give a helpful message instead of a cryptic error.
+	modelPath := cfg.ModelPath()
+	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "GoWhisper: model not found at %s\nRun: make download-model\n", modelPath)
+		os.Exit(1)
+	}
+
+	log.Printf("loading model: %s", modelPath)
+	tr, err := transcribe.New(modelPath)
 	if err != nil {
 		log.Fatalf("failed to load model: %v", err)
 	}
@@ -239,13 +284,16 @@ func runEventLoop(
 			}
 			switch action {
 			case ghotkey.ActionToggle:
-				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, cleanupEnabled, updateModeMenu)
+				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, cfg, cleanupEnabled, updateModeMenu)
 
 			case ghotkey.ActionCancel:
 				capturer.Cancel()
 				hkManager.DisableCancel()
 				tray.SetIdle(modeManager.Current().Name)
 				log.Println("recording cancelled")
+				if cfg.SoundEnabled() {
+					sound.Play(sound.Cancel)
+				}
 
 			case ghotkey.ActionMode:
 				activateMode(modeManager.Next())
@@ -281,11 +329,16 @@ func handleToggle(
 	tray *ui.Tray,
 	modeManager *mode.Manager,
 	llmClient *llm.Client,
+	cfg *config.Manager,
 	cleanupEnabled bool,
 	updateModeMenu func(string),
 ) {
 	switch capturer.CurrentState() {
 	case audio.StateIdle:
+		// Play start cue synchronously BEFORE the mic opens so it isn't captured.
+		if cfg.SoundEnabled() {
+			sound.PlaySync(sound.Start)
+		}
 		if err := capturer.Start(); err != nil {
 			log.Printf("failed to start recording: %v", err)
 			return
@@ -302,6 +355,18 @@ func handleToggle(
 		}
 		hkManager.DisableCancel()
 		tray.SetProcessing(modeManager.Current().Name)
+		if cfg.SoundEnabled() {
+			sound.Play(sound.Stop)
+		}
+
+		// Enforce hard cap on recording length.
+		if maxSecs := cfg.MaxRecordingSeconds(); maxSecs > 0 {
+			maxSamples := maxSecs * 16000
+			if len(samples) > maxSamples {
+				log.Printf("recording capped at %ds (%d samples dropped)", maxSecs, len(samples)-maxSamples)
+				samples = samples[:maxSamples]
+			}
+		}
 
 		var sum float64
 		for _, s := range samples {
@@ -311,26 +376,45 @@ func handleToggle(
 		if len(samples) > 0 {
 			rms = sum / float64(len(samples))
 		}
-		log.Printf("captured %d samples — RMS energy: %.6f — transcribing...", len(samples), rms)
+		log.Printf("captured %d samples (%.1fs) — RMS energy: %.6f — transcribing...",
+			len(samples), float64(len(samples))/16000, rms)
 
 		// Snapshot mode at stop time so a mid-flight change doesn't affect this result.
 		m := modeManager.Current()
 
 		go func() {
-			result, err := tr.Transcribe(transcribe.TranscribeRequest{
-				Samples:   samples,
-				Language:  m.Language,
-				Translate: m.Translate,
-			})
-			capturer.SetIdle()
-			tray.SetIdle(modeManager.Current().Name)
-			updateModeMenu(modeManager.Current().Name)
+			// Always restore idle state when this goroutine exits.
+			defer func() {
+				capturer.SetIdle()
+				tray.SetIdle(modeManager.Current().Name)
+				updateModeMenu(modeManager.Current().Name)
+			}()
 
-			if err != nil {
-				log.Printf("transcription: %v", err)
+			chunks := chunk.Split(samples, 25, 5)
+			if len(chunks) > 1 {
+				log.Printf("chunking: %d chunks for %.1fs of audio", len(chunks), float64(len(samples))/16000)
+			}
+
+			var transcripts []string
+			for i, c := range chunks {
+				res, err := tr.Transcribe(transcribe.TranscribeRequest{
+					Samples:   c,
+					Language:  m.Language,
+					Translate: m.Translate,
+				})
+				if err != nil {
+					log.Printf("transcription chunk %d/%d: %v (skipped)", i+1, len(chunks), err)
+					continue
+				}
+				transcripts = append(transcripts, res)
+			}
+
+			if len(transcripts) == 0 {
+				log.Println("transcription: no speech detected")
 				return
 			}
 
+			result := chunk.Stitch(transcripts)
 			log.Printf("transcript: %s", result)
 
 			text := result
@@ -349,6 +433,11 @@ func handleToggle(
 
 			if err := clipboard.Paste(text); err != nil {
 				log.Printf("paste failed: %v", err)
+				return
+			}
+
+			if cfg.NotificationsEnabled() {
+				notify.Show("GoWhisper", text)
 			}
 		}()
 

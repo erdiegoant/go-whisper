@@ -28,6 +28,8 @@ type raw struct {
 	ModelsDir           string     `yaml:"models_dir"`
 	MaxRecordingSeconds int        `yaml:"max_recording_seconds"`
 	LogLevel            string     `yaml:"log_level"`
+	SoundEnabled        *bool      `yaml:"sound_enabled"`
+	NotificationsEnabled *bool     `yaml:"notifications_enabled"`
 	Claude              claudeRaw  `yaml:"claude"`
 	Hotkeys             hotkeysRaw `yaml:"hotkeys"`
 	Modes               []modeRaw  `yaml:"modes"`
@@ -181,6 +183,34 @@ func (m *Manager) Modes() []mode.Mode {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return parseModes(m.cfg.Modes)
+}
+
+// LogLevel returns the configured log level string ("info" or "debug").
+func (m *Manager) LogLevel() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg.LogLevel
+}
+
+// MaxRecordingSeconds returns the hard cap on recording duration.
+func (m *Manager) MaxRecordingSeconds() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg.MaxRecordingSeconds
+}
+
+// SoundEnabled returns true unless sound_enabled is explicitly false in config.
+func (m *Manager) SoundEnabled() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg.SoundEnabled == nil || *m.cfg.SoundEnabled
+}
+
+// NotificationsEnabled returns true unless notifications_enabled is explicitly false in config.
+func (m *Manager) NotificationsEnabled() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg.NotificationsEnabled == nil || *m.cfg.NotificationsEnabled
 }
 
 // Dir returns the config directory (also used for state.json).
@@ -387,6 +417,14 @@ func applyDefaults(c *raw) {
 	if c.LogLevel == "" {
 		c.LogLevel = defaults.LogLevel
 	}
+	if c.SoundEnabled == nil {
+		v := true
+		c.SoundEnabled = &v
+	}
+	if c.NotificationsEnabled == nil {
+		v := true
+		c.NotificationsEnabled = &v
+	}
 	if c.Claude.Model == "" {
 		c.Claude.Model = defaults.Claude.Model
 	}
@@ -454,6 +492,8 @@ language: auto            # auto | es | en
 models_dir: "~/.config/gowhisper/models"
 max_recording_seconds: 120
 log_level: info
+sound_enabled: true
+notifications_enabled: true
 
 claude:
   api_key: ""             # leave empty to use ANTHROPIC_API_KEY environment variable

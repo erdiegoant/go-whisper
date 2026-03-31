@@ -1,6 +1,6 @@
 # Phase 8 — Polish & Reliability
 
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 **Depends on:** Phase 7
 
 Make it production-quality for daily use.
@@ -15,37 +15,37 @@ Make it production-quality for daily use.
 
 ## Steps
 
-- [ ] 1. **Audio feedback** — short system sound on recording start/stop
+- [x] 1. **Audio feedback** — short system sound on recording start/stop
   - Start: `afplay /System/Library/Sounds/Tink.aiff`
   - Stop/paste: `afplay /System/Library/Sounds/Pop.aiff`
   - Cancel: `afplay /System/Library/Sounds/Basso.aiff`
   - Run each async (goroutine) so playback never blocks recording
   - Add `sound_enabled: true` to config (default on); respect it before playing
 
-- [ ] 2. **Desktop notifications** — show transcribed text after paste
+- [x] 2. **Desktop notifications** — show transcribed text after paste
   - Use `osascript -e 'display notification ...'` (no entitlement needed, works out of the box)
   - Truncate to first 100 chars in the notification subtitle
   - Add `notifications_enabled: true` to config; skip if false
   - Useful when the paste landed in the wrong window
 
-- [ ] 3. **Long recording chunking** — handle recordings over 30s gracefully
+- [x] 3. **Long recording chunking** — handle recordings over 30s gracefully
   - Chunk audio into 25s segments with a 5s overlap (prevents mid-word cuts at boundaries)
   - Transcribe each chunk, deduplicate the overlapping tail/head between consecutive results, concatenate
   - Respect `max_recording_seconds` from config as hard cap (default: 120s)
   - Log chunk count and total duration when chunking kicks in
 
-- [ ] 4. **Structured logging to file**
+- [x] 4. **Structured logging to file**
   - Use `log/slog` (Go 1.21 stdlib) with JSON handler writing to `~/.config/gowhisper/gowhisper.log`
   - Add log rotation: cap at 10MB, keep 3 files — use `gopkg.in/natefinish/lumberjack.v2`
   - Respect `log_level: info/debug` from config
   - Keep existing `log.Printf` calls or replace with slog — consistency matters more than perfection
 
-- [ ] 5. **Error handling gaps**
+- [x] 5. **Error handling gaps**
   - Mic unavailable at `capturer.Start()` → log + stay IDLE (already partially handled; verify message is clear)
   - Model file missing → exit with message pointing to `make download-model` (currently crashes with an opaque error)
   - Config file unwritable → log warning, continue with in-memory state
 
-- [ ] 7. **Tests for all new code in this phase**
+- [x] 7. **Tests for all new code in this phase**
   - `sound_enabled` / `notifications_enabled` config parsing via `applyDefaults` patterns
   - Chunking logic (pure function — no CGo dependency): split/overlap/deduplicate
   - Any new config fields added to state.go
