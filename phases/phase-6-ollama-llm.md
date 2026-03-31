@@ -1,6 +1,6 @@
 # Phase 6 — Ollama LLM Post-Processing
 
-**Status:** [ ] Not Started
+**Status:** [x] Done
 **Depends on:** Phase 5
 
 Add optional AI cleanup and formatting on top of the raw transcript.

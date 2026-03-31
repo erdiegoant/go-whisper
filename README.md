@@ -179,7 +179,7 @@ phases/               # Development plan (phase-by-phase)
 | 3 | Hotkey & clipboard | ✅ Done |
 | 4 | Translation flow | ✅ Done |
 | 5 | Config & shortcuts | ✅ Done |
-| 6 | Ollama LLM post-processing | Not started |
+| 6 | LLM transcript cleanup (Claude API) | ✅ Done |
 | 7 | Custom modes | Not started |
 | 8 | Polish & reliability | Not started |
 | 9 | Native macOS UI (DarwinKit) | Not started |

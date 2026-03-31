@@ -23,18 +23,17 @@ type Combo struct {
 
 // raw is the YAML structure — field names match the config file keys.
 type raw struct {
-	Model               string      `yaml:"model"`
-	Language            string      `yaml:"language"`
-	ModelsDir           string      `yaml:"models_dir"`
-	MaxRecordingSeconds int         `yaml:"max_recording_seconds"`
-	LogLevel            string      `yaml:"log_level"`
-	Ollama              ollamaRaw   `yaml:"ollama"`
-	Hotkeys             hotkeysRaw  `yaml:"hotkeys"`
+	Model               string     `yaml:"model"`
+	Language            string     `yaml:"language"`
+	ModelsDir           string     `yaml:"models_dir"`
+	MaxRecordingSeconds int        `yaml:"max_recording_seconds"`
+	LogLevel            string     `yaml:"log_level"`
+	Claude              claudeRaw  `yaml:"claude"`
+	Hotkeys             hotkeysRaw `yaml:"hotkeys"`
 }
 
-type ollamaRaw struct {
-	Enabled        bool   `yaml:"enabled"`
-	Endpoint       string `yaml:"endpoint"`
+type claudeRaw struct {
+	APIKey         string `yaml:"api_key"`         // falls back to ANTHROPIC_API_KEY env var
 	Model          string `yaml:"model"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
@@ -50,6 +49,13 @@ type Combos struct {
 	Toggle Combo
 	Cancel Combo
 	Mode   Combo
+}
+
+// ClaudeConfig holds the resolved Claude API settings.
+type ClaudeConfig struct {
+	APIKey         string
+	Model          string
+	TimeoutSeconds int
 }
 
 // Manager owns the parsed config and the fsnotify watcher.
@@ -69,10 +75,9 @@ var defaults = raw{
 	ModelsDir:           "~/.config/gowhisper/models",
 	MaxRecordingSeconds: 120,
 	LogLevel:            "info",
-	Ollama: ollamaRaw{
-		Endpoint:       "http://localhost:11434",
-		Model:          "llama3.2:3b",
-		TimeoutSeconds: 10,
+	Claude: claudeRaw{
+		Model:          "claude-haiku-4-5-20251001",
+		TimeoutSeconds: 15,
 	},
 	Hotkeys: hotkeysRaw{
 		ToggleRecording: "option+space",
@@ -138,6 +143,22 @@ func (m *Manager) Language() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.cfg.Language
+}
+
+// ClaudeConfig returns the resolved Claude API settings.
+// api_key in config.yaml takes precedence; falls back to ANTHROPIC_API_KEY env var.
+func (m *Manager) ClaudeConfig() ClaudeConfig {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	key := m.cfg.Claude.APIKey
+	if key == "" {
+		key = os.Getenv("ANTHROPIC_API_KEY")
+	}
+	return ClaudeConfig{
+		APIKey:         key,
+		Model:          m.cfg.Claude.Model,
+		TimeoutSeconds: m.cfg.Claude.TimeoutSeconds,
+	}
 }
 
 // Dir returns the config directory (also used for state.json).
@@ -309,14 +330,11 @@ func applyDefaults(c *raw) {
 	if c.LogLevel == "" {
 		c.LogLevel = defaults.LogLevel
 	}
-	if c.Ollama.Endpoint == "" {
-		c.Ollama.Endpoint = defaults.Ollama.Endpoint
+	if c.Claude.Model == "" {
+		c.Claude.Model = defaults.Claude.Model
 	}
-	if c.Ollama.Model == "" {
-		c.Ollama.Model = defaults.Ollama.Model
-	}
-	if c.Ollama.TimeoutSeconds == 0 {
-		c.Ollama.TimeoutSeconds = defaults.Ollama.TimeoutSeconds
+	if c.Claude.TimeoutSeconds == 0 {
+		c.Claude.TimeoutSeconds = defaults.Claude.TimeoutSeconds
 	}
 	if c.Hotkeys.ToggleRecording == "" {
 		c.Hotkeys.ToggleRecording = defaults.Hotkeys.ToggleRecording
@@ -381,11 +399,10 @@ models_dir: "~/.config/gowhisper/models"
 max_recording_seconds: 120
 log_level: info
 
-ollama:
-  enabled: false
-  endpoint: "http://localhost:11434"
-  model: "llama3.2:3b"
-  timeout_seconds: 10
+claude:
+  api_key: ""             # leave empty to use ANTHROPIC_API_KEY environment variable
+  model: "claude-haiku-4-5-20251001"
+  timeout_seconds: 15
 
 hotkeys:
   toggle_recording: "option+space"

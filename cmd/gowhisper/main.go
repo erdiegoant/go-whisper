@@ -11,6 +11,7 @@ import (
 	"github.com/erdiegoant/gowhisper/internal/clipboard"
 	"github.com/erdiegoant/gowhisper/internal/config"
 	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
+	"github.com/erdiegoant/gowhisper/internal/llm"
 	"github.com/erdiegoant/gowhisper/internal/mode"
 	"github.com/erdiegoant/gowhisper/internal/transcribe"
 	"github.com/erdiegoant/gowhisper/internal/ui"
@@ -52,6 +53,15 @@ func main() {
 	}
 	defer tr.Close()
 	log.Println("model loaded")
+
+	// Init Claude cleanup client (optional — requires ANTHROPIC_API_KEY or claude.api_key in config).
+	var llmClient *llm.Client
+	if cc := cfg.ClaudeConfig(); cc.APIKey != "" {
+		llmClient = llm.New(cc.APIKey, cc.Model, cc.TimeoutSeconds)
+		log.Println("llm: Claude cleanup ready")
+	} else {
+		log.Println("llm: no API key set — transcripts will not be cleaned up")
+	}
 
 	// Init audio capturer.
 	capturer, err := audio.New()
@@ -131,7 +141,7 @@ func main() {
 				}
 			})
 
-			runEventLoop(capturer, tr, hkManager, tray, modeManager, cfg)
+			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, cfg)
 		}()
 	})
 }
@@ -143,6 +153,7 @@ func runEventLoop(
 	hkManager *ghotkey.Manager,
 	tray *ui.Tray,
 	modeManager *mode.Manager,
+	llmClient *llm.Client,
 	cfg *config.Manager,
 ) {
 	tray.SetIdle(modeManager.Current().Name)
@@ -151,7 +162,7 @@ func runEventLoop(
 	for action := range hkManager.C() {
 		switch action {
 		case ghotkey.ActionToggle:
-			handleToggle(capturer, tr, hkManager, tray, modeManager, cfg)
+			handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient)
 
 		case ghotkey.ActionCancel:
 			capturer.Cancel()
@@ -169,7 +180,7 @@ func runEventLoop(
 }
 
 // handleToggle manages the IDLE→RECORDING→PROCESSING→IDLE transition.
-func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManager *ghotkey.Manager, tray *ui.Tray, modeManager *mode.Manager, cfg *config.Manager) {
+func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManager *ghotkey.Manager, tray *ui.Tray, modeManager *mode.Manager, llmClient *llm.Client) {
 	switch capturer.CurrentState() {
 	case audio.StateIdle:
 		if err := capturer.Start(); err != nil {
@@ -219,7 +230,17 @@ func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManage
 
 			log.Printf("transcript: %s", result)
 
-			if err := clipboard.Paste(result); err != nil {
+			text := result
+			if llmClient != nil {
+				if cleaned, err := llmClient.Process(llm.CleanupPrompt, result); err != nil {
+					log.Printf("llm: cleanup failed, using raw transcript: %v", err)
+				} else {
+					log.Printf("llm: cleaned: %s", cleaned)
+					text = cleaned
+				}
+			}
+
+			if err := clipboard.Paste(text); err != nil {
 				log.Printf("paste failed: %v", err)
 			}
 		}()
