@@ -117,6 +117,18 @@ func main() {
 
 	tray := ui.New()
 	tray.Run(func() {
+		tray.AddOpenConfigItem(configPath)
+
+		// Channel for tray cleanup toggle to reach the event loop.
+		cleanupCh := make(chan bool, 2)
+
+		// Cleanup toggle — default enabled; restore from state.
+		cleanupEnabled := true
+		if state, err := config.LoadState(cfg.Dir()); err == nil {
+			cleanupEnabled = !state.CleanupDisabled
+		}
+		tray.AddCleanupToggle(cleanupEnabled, func(v bool) { cleanupCh <- v })
+
 		// Microphone submenu.
 		if devices, err := capturer.ListDevices(); err == nil {
 			names := make([]string, 0, len(devices)+1)
@@ -163,8 +175,6 @@ func main() {
 			log.Printf("mic: could not list devices: %v", err)
 		}
 
-		tray.AddOpenConfigItem(configPath)
-
 		go func() {
 			combos := cfg.Combos()
 			hkManager, err := ghotkey.New(
@@ -187,22 +197,12 @@ func main() {
 			// Channel for tray mode-picker clicks to reach the event loop.
 			setModeCh := make(chan string, 4)
 
-			// Channel for tray cleanup toggle to reach the event loop.
-			cleanupCh := make(chan bool, 2)
-
 			// Build initial mode menu.
 			updateModeMenu := tray.AddModeMenu(
 				modeItems(modeManager.All()),
 				func(name string) { setModeCh <- name },
 			)
 			updateModeMenu(modeManager.Current().Name)
-
-			// Cleanup toggle — default enabled; restore from state.
-			cleanupEnabled := true
-			if state, err := config.LoadState(cfg.Dir()); err == nil {
-				cleanupEnabled = !state.CleanupDisabled
-			}
-			tray.AddCleanupToggle(cleanupEnabled, func(v bool) { cleanupCh <- v })
 
 			// React to config file changes.
 			cfg.OnChange(func(evt config.ChangeEvent) {
