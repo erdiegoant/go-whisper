@@ -40,21 +40,14 @@ Make it production-quality for daily use.
   - Respect `log_level: info/debug` from config
   - Keep existing `log.Printf` calls or replace with slog — consistency matters more than perfection
 
-- [ ] 5. **VAD (Voice Activity Detection)** — optional auto-stop enhancement
-  - Energy-based: compute RMS on rolling window; auto-stop when below threshold for N seconds
-  - Config: `vad_enabled: false` (default off), `vad_silence_seconds: 2`, `vad_threshold: 0.001`
-  - Must not affect primary UX when disabled — manual toggle behavior unchanged
-  - Low priority; skip if it adds too much complexity
-
-- [ ] 6. **Error handling gaps**
+- [ ] 5. **Error handling gaps**
   - Mic unavailable at `capturer.Start()` → log + stay IDLE (already partially handled; verify message is clear)
   - Model file missing → exit with message pointing to `make download-model` (currently crashes with an opaque error)
   - Config file unwritable → log warning, continue with in-memory state
 
 - [ ] 7. **Tests for all new code in this phase**
-  - `sound_enabled` / `notifications_enabled` config parsing via `applyDefaults` and `parseModes` patterns
+  - `sound_enabled` / `notifications_enabled` config parsing via `applyDefaults` patterns
   - Chunking logic (pure function — no CGo dependency): split/overlap/deduplicate
-  - VAD energy threshold logic (pure function)
   - Any new config fields added to state.go
 
 ## Concrete test scenarios (manual)
