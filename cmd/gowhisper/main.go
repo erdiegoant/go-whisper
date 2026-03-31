@@ -122,12 +122,22 @@ func main() {
 			// Channel for tray mode-picker clicks to reach the event loop.
 			setModeCh := make(chan string, 4)
 
+			// Channel for tray cleanup toggle to reach the event loop.
+			cleanupCh := make(chan bool, 2)
+
 			// Build initial mode menu.
 			updateModeMenu := tray.AddModeMenu(
 				modeItems(modeManager.All()),
 				func(name string) { setModeCh <- name },
 			)
 			updateModeMenu(modeManager.Current().Name)
+
+			// Cleanup toggle — default enabled; restore from state.
+			cleanupEnabled := true
+			if state, err := config.LoadState(cfg.Dir()); err == nil {
+				cleanupEnabled = !state.CleanupDisabled
+			}
+			tray.AddCleanupToggle(cleanupEnabled, func(v bool) { cleanupCh <- v })
 
 			// React to config file changes.
 			cfg.OnChange(func(evt config.ChangeEvent) {
@@ -155,7 +165,7 @@ func main() {
 				}
 			})
 
-			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, cfg, setModeCh, updateModeMenu)
+			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu)
 		}()
 	})
 }
@@ -194,16 +204,31 @@ func runEventLoop(
 	llmClient *llm.Client,
 	cfg *config.Manager,
 	setModeCh <-chan string,
+	cleanupCh <-chan bool,
+	cleanupEnabled bool,
 	updateModeMenu func(string),
 ) {
 	tray.SetIdle(modeManager.Current().Name)
 	log.Println("ready — ⌥Space to record, Esc to cancel, ⌥⇧K to change mode")
 
+	saveCurrentState := func() {
+		m := modeManager.Current()
+		go func() {
+			if err := config.SaveState(cfg.Dir(), config.State{
+				LastMode:        m.Name,
+				LastLanguage:    m.Language,
+				CleanupDisabled: !cleanupEnabled,
+			}); err != nil {
+				log.Printf("state: save failed: %v", err)
+			}
+		}()
+	}
+
 	activateMode := func(m mode.Mode) {
 		tray.SetIdle(m.Name)
 		updateModeMenu(m.Name)
 		log.Printf("mode: switched to %s", m.Name)
-		go persistState(cfg, m)
+		saveCurrentState()
 	}
 
 	for {
@@ -214,7 +239,7 @@ func runEventLoop(
 			}
 			switch action {
 			case ghotkey.ActionToggle:
-				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, updateModeMenu)
+				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, cleanupEnabled, updateModeMenu)
 
 			case ghotkey.ActionCancel:
 				capturer.Cancel()
@@ -231,7 +256,6 @@ func runEventLoop(
 				// Modes list changed in config — reload manager and rebuild menu.
 				newModes := cfg.Modes()
 				modeManager.Reload(newModes)
-				// Rebuild the mode menu (AddModeMenu is a one-time setup; log the change).
 				log.Printf("config: modes reloaded (%d modes)", len(newModes))
 				updateModeMenu(modeManager.Current().Name)
 			} else {
@@ -240,6 +264,11 @@ func runEventLoop(
 					activateMode(modeManager.Current())
 				}
 			}
+
+		case v := <-cleanupCh:
+			cleanupEnabled = v
+			log.Printf("cleanup: %s", map[bool]string{true: "enabled", false: "disabled"}[v])
+			saveCurrentState()
 		}
 	}
 }
@@ -252,6 +281,7 @@ func handleToggle(
 	tray *ui.Tray,
 	modeManager *mode.Manager,
 	llmClient *llm.Client,
+	cleanupEnabled bool,
 	updateModeMenu func(string),
 ) {
 	switch capturer.CurrentState() {
@@ -304,7 +334,7 @@ func handleToggle(
 			log.Printf("transcript: %s", result)
 
 			text := result
-			if llmClient != nil {
+			if llmClient != nil && cleanupEnabled {
 				prompt := m.Prompt
 				if prompt == "" {
 					prompt = llm.CleanupPrompt
@@ -327,12 +357,3 @@ func handleToggle(
 	}
 }
 
-// persistState saves the current mode to state.json asynchronously.
-func persistState(cfg *config.Manager, m mode.Mode) {
-	if err := config.SaveState(cfg.Dir(), config.State{
-		LastMode:     m.Name,
-		LastLanguage: m.Language,
-	}); err != nil {
-		log.Printf("state: save failed: %v", err)
-	}
-}

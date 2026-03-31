@@ -133,6 +133,36 @@ func (t *Tray) AddDeviceMenu(devices []string, onSelect func(name string)) {
 	}
 }
 
+// AddCleanupToggle adds a "Cleanup" menu item that toggles LLM post-processing.
+// enabled is the initial state. onToggle is called with the new enabled value on each click.
+// Returns an update function — call it with the current enabled state to refresh the checkmark.
+// Must be called after Run's onReady fires.
+func (t *Tray) AddCleanupToggle(enabled bool, onToggle func(bool)) func(bool) {
+	item := systray.AddMenuItem("Cleanup", "Toggle Claude transcript cleanup")
+	if enabled {
+		item.Check()
+	}
+	current := enabled
+	go func() {
+		for range item.ClickedCh {
+			current = !current
+			if current {
+				item.Check()
+			} else {
+				item.Uncheck()
+			}
+			onToggle(current)
+		}
+	}()
+	return func(v bool) {
+		if v {
+			item.Check()
+		} else {
+			item.Uncheck()
+		}
+	}
+}
+
 // Done returns a channel that closes when the user clicks Quit.
 func (t *Tray) Done() <-chan struct{} {
 	return t.quitCh

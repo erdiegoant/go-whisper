@@ -10,8 +10,9 @@ import (
 // State holds runtime state persisted between launches.
 // It lives in state.json alongside config.yaml and is never written back to config.yaml.
 type State struct {
-	LastMode     string `json:"last_mode"`
-	LastLanguage string `json:"last_language"`
+	LastMode        string `json:"last_mode"`
+	LastLanguage    string `json:"last_language"`
+	CleanupDisabled bool   `json:"cleanup_disabled,omitempty"`
 }
 
 // LoadState reads state.json from dir. Returns a zero State (not an error) if the file

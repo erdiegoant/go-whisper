@@ -19,7 +19,7 @@ func TestLoadState_missingFile(t *testing.T) {
 
 func TestSaveAndLoadState_roundtrip(t *testing.T) {
 	dir := t.TempDir()
-	want := State{LastMode: "Formal", LastLanguage: "en"}
+	want := State{LastMode: "Formal", LastLanguage: "en", CleanupDisabled: true}
 
 	if err := SaveState(dir, want); err != nil {
 		t.Fatalf("SaveState: %v", err)
@@ -31,6 +31,16 @@ func TestSaveAndLoadState_roundtrip(t *testing.T) {
 	}
 	if got != want {
 		t.Errorf("expected %+v, got %+v", want, got)
+	}
+}
+
+func TestLoadState_cleanupDefaultsEnabled(t *testing.T) {
+	// A state.json written before CleanupDisabled existed should default to enabled (false).
+	dir := t.TempDir()
+	_ = SaveState(dir, State{LastMode: "Standard"})
+	got, _ := LoadState(dir)
+	if got.CleanupDisabled {
+		t.Error("expected CleanupDisabled to default to false (cleanup enabled)")
 	}
 }
 
