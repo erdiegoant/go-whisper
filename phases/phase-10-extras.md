@@ -9,7 +9,6 @@ Nice-to-haves once everything is solid. Each feature ships independently.
 
 | Feature | Description | Effort |
 |---|---|---|
-| VAD auto-stop | Auto-stop recording after N seconds of silence | Low (foundation in Phase 8) |
 | Push to Talk | Hold to record, release to transcribe (alternative to toggle) | Low |
 | History log | Save all transcriptions with timestamps to a local SQLite file | Medium |
 | Transcribe from file | Drag an audio file onto the tray icon to transcribe it | Medium |
@@ -18,14 +17,6 @@ Nice-to-haves once everything is solid. Each feature ships independently.
 | Mouse shortcut | Tap to toggle, or hold and release for push-to-talk | Medium |
 
 ---
-
-## VAD Auto-Stop
-> Phase 8 adds the foundation (RMS energy-based VAD, off by default). This extends it.
-
-- [ ] Add config option: `vad_enabled: true` and `vad_silence_seconds: 1.5`
-- [ ] When enabled: auto-stop recording after the configured silence duration
-- [ ] Tune the RMS threshold — make it configurable (`vad_threshold: 0.01`)
-- [ ] Test: speak, pause, confirm auto-stop triggers correctly without cutting off trailing words
 
 ## Push to Talk
 > Requires key-up events. If using `golang.design/x/hotkey`, this is not supported — switch to `robotgo` for this feature only, or implement via a CGo hook.

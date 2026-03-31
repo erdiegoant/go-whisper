@@ -28,7 +28,7 @@ All DarwinKit/AppKit calls **must happen on the main thread**. The goroutine arc
 
 - [ ] 1. Add DarwinKit (`github.com/progrium/darwinkit`) to `go.mod`
 - [ ] 2. Replace the `fyne-io/systray` placeholder with a native `NSStatusBar` item
-- [ ] 3. Show current mode name next to the icon (e.g. `● Cleanup`, `● Raw`, `● Translating`)
+- [ ] 3. Show current mode name next to the icon (e.g. `● Standard`, `● Translate`, `● Formal`)
 - [ ] 4. Add a native AppKit dropdown menu with:
   - Mode list (tap to switch — replaces the hotkey cycle for mouse users)
   - Separator
@@ -43,9 +43,9 @@ All DarwinKit/AppKit calls **must happen on the main thread**. The goroutine arc
 - [ ] 2. Show it immediately on toggle press (hotkey), hide it automatically after paste completes
 - [ ] 3. Display three states visually inside the panel:
   - `RECORDING`: mic waveform animation (audio level bars driven by the capture goroutine via channel)
-  - `PROCESSING`: spinner while Whisper/Ollama is working
+  - `PROCESSING`: spinner while Whisper transcription and Claude cleanup are running
   - `DONE`: brief checkmark on successful paste (~1s), then dismiss
-- [ ] 4. Show current mode name inside the popup (e.g. "Cleanup", "Translate → EN")
+- [ ] 4. Show current mode name inside the popup (e.g. "Standard", "Translate → EN", or the custom mode name)
 - [ ] 5. Position bottom-center of screen, matching Superwhisper's style
 - [ ] 6. Make it dismissible with Esc (cancel: discard buffer, hide panel, return to IDLE)
 - [ ] 7. Set `panel.setSharingType(.none)` — exclude from screen recordings (privacy: hides dictated passwords from captures)
