@@ -1,0 +1,17 @@
+name: go-whisper
+icon: null
+processes:
+  Run Build:
+    command: make run
+    working_dir: null
+    auto_start: false
+    auto_restart: false
+    restart_when_changed: []
+    env: {}
+  Run Dev:
+    command: make dev
+    working_dir: null
+    auto_start: false
+    auto_restart: false
+    restart_when_changed: []
+    env: {}
