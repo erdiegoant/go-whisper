@@ -50,7 +50,7 @@ func (c *Client) Process(systemPrompt, text string) (string, error) {
 		"max_tokens": 1024,
 		"system":     systemPrompt,
 		"messages": []map[string]string{
-			{"role": "user", "content": text},
+			{"role": "user", "content": "Transcript:\n\n" + text},
 		},
 	})
 	if err != nil {

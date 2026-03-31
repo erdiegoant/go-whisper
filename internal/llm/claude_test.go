@@ -2,6 +2,7 @@ package llm
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -42,6 +43,34 @@ func successBody(text string) string {
 	}
 	b, _ := json.Marshal(resp)
 	return string(b)
+}
+
+func TestProcess_requestFraming(t *testing.T) {
+	// Verify the transcript is wrapped with "Transcript:\n\n" so Claude
+	// doesn't treat a bare short text as a greeting or empty context.
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(successBody("ok")))
+	}))
+	defer srv.Close()
+
+	c := New("key", "model", 5)
+	c.http = &http.Client{
+		Transport: &rewriteTransport{base: http.DefaultTransport, target: srv.URL},
+	}
+	_, _ = c.Process("system", "hello world")
+
+	var payload map[string]any
+	if err := json.Unmarshal(gotBody, &payload); err != nil {
+		t.Fatalf("could not parse request body: %v", err)
+	}
+	msgs := payload["messages"].([]any)
+	content := msgs[0].(map[string]any)["content"].(string)
+	if !strings.HasPrefix(content, "Transcript:\n\n") {
+		t.Errorf("expected request content to start with 'Transcript:\\n\\n', got: %q", content)
+	}
 }
 
 func TestProcess_success(t *testing.T) {
