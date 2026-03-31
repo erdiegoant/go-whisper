@@ -6,7 +6,7 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 
 - **Toggle recording** — press ⌥Space to start, press again to stop and paste
 - **Cancel recording** — press Esc to discard mid-recording, nothing is pasted
-- **Cycle modes** — press ⌥⇧K to switch between raw, cleanup, formal, bullets, and custom modes
+- **Cycle modes** — press ⌥⇧K to switch between Standard, Translate, and custom modes
 - **ES → EN translation** — Whisper's native translation, no LLM needed
 - **LLM post-processing** — optional Ollama integration for cleanup, formatting, and custom modes
 - **Custom modes** — define your own prompts in `config.yaml`, cycle through them with a hotkey
@@ -91,14 +91,14 @@ On first launch, macOS will prompt for:
 
 > **Note:** When using `make dev`, mic access is granted to your terminal app, not the binary. If recording captures only silence, open System Settings → Privacy & Security → Microphone and ensure your terminal is listed and enabled. Use `make rectest` to verify mic access before running the full app.
 
-The app lives in your menubar. You'll see `⬜ Raw` when idle.
+The app lives in your menubar. You'll see `⚫ Standard` when idle.
 
 ## Usage
 
-1. Press **⌥Space** — icon changes to `🔴 Raw`, recording starts
+1. Press **⌥Space** — icon changes to `🔴 Standard`, recording starts
 2. Speak
-3. Press **⌥Space** again — icon changes to `⏳ Raw`, transcription runs
-4. Text is pasted into whatever window was active — icon returns to `⬜ Raw`
+3. Press **⌥Space** again — icon changes to `⏳ Standard`, transcription runs
+4. Text is pasted into whatever window was active — icon returns to `⚫ Standard`
 
 Press **Esc** at any point while recording to cancel (nothing is pasted).
 
@@ -177,7 +177,7 @@ phases/               # Development plan (phase-by-phase)
 | 1 | Audio capture | ✅ Done |
 | 2 | Whisper.cpp integration | ✅ Done |
 | 3 | Hotkey & clipboard | ✅ Done |
-| 4 | Translation flow | Not started |
+| 4 | Translation flow | ✅ Done |
 | 5 | Config & shortcuts | Not started |
 | 6 | Ollama LLM post-processing | Not started |
 | 7 | Custom modes | Not started |
