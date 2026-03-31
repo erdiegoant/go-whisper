@@ -8,10 +8,16 @@ import (
 )
 
 const (
-	iconIdle       = "⚫" // shown in menu title — actual icon is set via systray.SetTitle
+	iconIdle       = "⚫"
 	iconRecording  = "🔴"
 	iconProcessing = "⏳"
 )
+
+// ModeItem describes a single entry in the Mode submenu.
+type ModeItem struct {
+	Name    string // display name
+	Tooltip string // shown on hover (prompt preview or description)
+}
 
 // Tray manages the menubar status item.
 type Tray struct {
@@ -44,27 +50,26 @@ func (t *Tray) Run(onReady func()) {
 	}, func() {})
 }
 
-// SetIdle updates the tray icon to the idle state.
-func (t *Tray) SetIdle(mode string) {
-	label := "⚫ " + mode
-	systray.SetTitle(label)
+// SetIdle updates the tray title to the idle state.
+func (t *Tray) SetIdle(modeName string) {
+	systray.SetTitle("⚫ " + modeName)
 	systray.SetTooltip("GoWhisper — idle")
 }
 
-// SetRecording updates the tray icon to the recording state.
-func (t *Tray) SetRecording(mode string) {
-	systray.SetTitle("🔴 " + mode)
+// SetRecording updates the tray title to the recording state.
+func (t *Tray) SetRecording(modeName string) {
+	systray.SetTitle("🔴 " + modeName)
 	systray.SetTooltip("GoWhisper — recording")
 }
 
-// SetProcessing updates the tray icon to the processing state.
-func (t *Tray) SetProcessing(mode string) {
-	systray.SetTitle("⏳ " + mode)
+// SetProcessing updates the tray title to the processing state.
+func (t *Tray) SetProcessing(modeName string) {
+	systray.SetTitle("⏳ " + modeName)
 	systray.SetTooltip("GoWhisper — transcribing")
 }
 
 // AddOpenConfigItem adds an "Open Config" menu item that opens path in the
-// default application for .yaml files (e.g. VS Code, TextEdit).
+// default application for .yaml files.
 // Must be called after Run's onReady fires.
 func (t *Tray) AddOpenConfigItem(path string) {
 	item := systray.AddMenuItem("Open Config", "Edit ~/.config/gowhisper/config.yaml")
@@ -75,6 +80,36 @@ func (t *Tray) AddOpenConfigItem(path string) {
 			}
 		}
 	}()
+}
+
+// AddModeMenu adds a "Mode" submenu listing the given modes.
+// The active mode shows a checkmark. Clicking a mode calls onSelect with the mode name.
+// Returns an update function — call it with the active mode name whenever the active
+// mode changes (hotkey cycle, config reload, or tray click) to refresh checkmarks.
+// Must be called after Run's onReady fires.
+func (t *Tray) AddModeMenu(modes []ModeItem, onSelect func(name string)) func(active string) {
+	parent := systray.AddMenuItem("Mode", "Select transcription mode")
+	items := make([]*systray.MenuItem, len(modes))
+	for i, m := range modes {
+		item := parent.AddSubMenuItem(m.Name, m.Tooltip)
+		items[i] = item
+		go func(item *systray.MenuItem, name string) {
+			for range item.ClickedCh {
+				onSelect(name)
+			}
+		}(item, m.Name)
+	}
+
+	update := func(active string) {
+		for i, item := range items {
+			if modes[i].Name == active {
+				item.Check()
+			} else {
+				item.Uncheck()
+			}
+		}
+	}
+	return update
 }
 
 // AddDeviceMenu adds a "Microphone" submenu listing the given device names.

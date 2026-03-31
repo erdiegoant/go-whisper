@@ -54,7 +54,7 @@ func main() {
 	defer tr.Close()
 	log.Println("model loaded")
 
-	// Init Claude cleanup client (optional — requires ANTHROPIC_API_KEY or claude.api_key in config).
+	// Init Claude cleanup client (optional).
 	var llmClient *llm.Client
 	if cc := cfg.ClaudeConfig(); cc.APIKey != "" {
 		llmClient = llm.New(cc.APIKey, cc.Model, cc.TimeoutSeconds)
@@ -70,10 +70,9 @@ func main() {
 	}
 	defer capturer.Close()
 
-	// Start the systray on the main goroutine — this call blocks until Quit.
 	tray := ui.New()
 	tray.Run(func() {
-		// Build the microphone submenu from available capture devices.
+		// Microphone submenu.
 		if devices, err := capturer.ListDevices(); err == nil {
 			names := make([]string, 0, len(devices)+1)
 			names = append(names, "Default")
@@ -112,38 +111,77 @@ func main() {
 			}
 			defer hkManager.Close()
 
-			modeManager := &mode.Manager{}
+			// Init mode manager from config (falls back to Standard+Translate if no modes block).
+			modeManager := mode.NewManager(cfg.Modes())
 
 			// Restore last-used mode from state.json.
 			if state, err := config.LoadState(cfg.Dir()); err == nil && state.LastMode != "" {
 				modeManager.SetByName(state.LastMode)
 			}
 
+			// Channel for tray mode-picker clicks to reach the event loop.
+			setModeCh := make(chan string, 4)
+
+			// Build initial mode menu.
+			updateModeMenu := tray.AddModeMenu(
+				modeItems(modeManager.All()),
+				func(name string) { setModeCh <- name },
+			)
+			updateModeMenu(modeManager.Current().Name)
+
 			// React to config file changes.
-			cfg.OnChange(func(newCombos config.Combos, combosChanged bool, newModel string, modelChanged bool) {
-				if combosChanged {
+			cfg.OnChange(func(evt config.ChangeEvent) {
+				if evt.CombosChanged {
 					hkManager.Rebind(
-						ghotkey.Combo(newCombos.Toggle),
-						ghotkey.Combo(newCombos.Mode),
-						ghotkey.Combo(newCombos.Cancel),
+						ghotkey.Combo(evt.Combos.Toggle),
+						ghotkey.Combo(evt.Combos.Mode),
+						ghotkey.Combo(evt.Combos.Cancel),
 					)
 					log.Println("config: hotkeys reloaded")
 				}
-				if modelChanged {
+				if evt.ModelChanged {
 					go func() {
-						log.Printf("config: loading new model: %s", newModel)
-						if err := tr.Swap(newModel); err != nil {
+						log.Printf("config: loading new model: %s", evt.Model)
+						if err := tr.Swap(evt.Model); err != nil {
 							log.Printf("config: model swap failed: %v", err)
 						} else {
-							log.Printf("config: model swapped to %s", newModel)
+							log.Printf("config: model swapped to %s", evt.Model)
 						}
 					}()
 				}
+				if evt.ModesChanged {
+					// Reload runs in the watcher goroutine; send to event loop via channel.
+					go func() { setModeCh <- "" }() // empty string = reload signal
+				}
 			})
 
-			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, cfg)
+			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, cfg, setModeCh, updateModeMenu)
 		}()
 	})
+}
+
+// modeItems converts []mode.Mode to []ui.ModeItem, building tooltips.
+func modeItems(modes []mode.Mode) []ui.ModeItem {
+	items := make([]ui.ModeItem, len(modes))
+	for i, m := range modes {
+		tooltip := modeTooltip(m)
+		items[i] = ui.ModeItem{Name: m.Name, Tooltip: tooltip}
+	}
+	return items
+}
+
+// modeTooltip returns a short description for a mode's tray tooltip.
+func modeTooltip(m mode.Mode) string {
+	if m.Prompt != "" {
+		if len(m.Prompt) > 60 {
+			return m.Prompt[:60] + "…"
+		}
+		return m.Prompt
+	}
+	if m.Translate {
+		return m.Name + " — ES→EN (Whisper native)"
+	}
+	return m.Name + " — auto transcription"
 }
 
 // runEventLoop handles hotkey actions and drives the recording state machine.
@@ -155,32 +193,67 @@ func runEventLoop(
 	modeManager *mode.Manager,
 	llmClient *llm.Client,
 	cfg *config.Manager,
+	setModeCh <-chan string,
+	updateModeMenu func(string),
 ) {
 	tray.SetIdle(modeManager.Current().Name)
 	log.Println("ready — ⌥Space to record, Esc to cancel, ⌥⇧K to change mode")
 
-	for action := range hkManager.C() {
-		switch action {
-		case ghotkey.ActionToggle:
-			handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient)
+	activateMode := func(m mode.Mode) {
+		tray.SetIdle(m.Name)
+		updateModeMenu(m.Name)
+		log.Printf("mode: switched to %s", m.Name)
+		go persistState(cfg, m)
+	}
 
-		case ghotkey.ActionCancel:
-			capturer.Cancel()
-			hkManager.DisableCancel()
-			tray.SetIdle(modeManager.Current().Name)
-			log.Println("recording cancelled")
+	for {
+		select {
+		case action, ok := <-hkManager.C():
+			if !ok {
+				return
+			}
+			switch action {
+			case ghotkey.ActionToggle:
+				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, updateModeMenu)
 
-		case ghotkey.ActionMode:
-			m := modeManager.Next()
-			tray.SetIdle(m.Name)
-			log.Printf("mode: switched to %s", m.Name)
-			go persistState(cfg, m)
+			case ghotkey.ActionCancel:
+				capturer.Cancel()
+				hkManager.DisableCancel()
+				tray.SetIdle(modeManager.Current().Name)
+				log.Println("recording cancelled")
+
+			case ghotkey.ActionMode:
+				activateMode(modeManager.Next())
+			}
+
+		case name := <-setModeCh:
+			if name == "" {
+				// Modes list changed in config — reload manager and rebuild menu.
+				newModes := cfg.Modes()
+				modeManager.Reload(newModes)
+				// Rebuild the mode menu (AddModeMenu is a one-time setup; log the change).
+				log.Printf("config: modes reloaded (%d modes)", len(newModes))
+				updateModeMenu(modeManager.Current().Name)
+			} else {
+				// Tray click — switch to the selected mode.
+				if modeManager.SetByName(name) {
+					activateMode(modeManager.Current())
+				}
+			}
 		}
 	}
 }
 
 // handleToggle manages the IDLE→RECORDING→PROCESSING→IDLE transition.
-func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManager *ghotkey.Manager, tray *ui.Tray, modeManager *mode.Manager, llmClient *llm.Client) {
+func handleToggle(
+	capturer *audio.Capturer,
+	tr *transcribe.Transcriber,
+	hkManager *ghotkey.Manager,
+	tray *ui.Tray,
+	modeManager *mode.Manager,
+	llmClient *llm.Client,
+	updateModeMenu func(string),
+) {
 	switch capturer.CurrentState() {
 	case audio.StateIdle:
 		if err := capturer.Start(); err != nil {
@@ -210,10 +283,9 @@ func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManage
 		}
 		log.Printf("captured %d samples — RMS energy: %.6f — transcribing...", len(samples), rms)
 
-		// Snapshot mode at recording-stop time so a mid-flight mode change doesn't affect this result.
+		// Snapshot mode at stop time so a mid-flight change doesn't affect this result.
 		m := modeManager.Current()
 
-		// Transcribe and paste in a goroutine so the hotkey loop stays responsive.
 		go func() {
 			result, err := tr.Transcribe(transcribe.TranscribeRequest{
 				Samples:   samples,
@@ -222,6 +294,7 @@ func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManage
 			})
 			capturer.SetIdle()
 			tray.SetIdle(modeManager.Current().Name)
+			updateModeMenu(modeManager.Current().Name)
 
 			if err != nil {
 				log.Printf("transcription: %v", err)
@@ -232,7 +305,11 @@ func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManage
 
 			text := result
 			if llmClient != nil {
-				if cleaned, err := llmClient.Process(llm.CleanupPrompt, result); err != nil {
+				prompt := m.Prompt
+				if prompt == "" {
+					prompt = llm.CleanupPrompt
+				}
+				if cleaned, err := llmClient.Process(prompt, result); err != nil {
 					log.Printf("llm: cleanup failed, using raw transcript: %v", err)
 				} else {
 					log.Printf("llm: cleaned: %s", cleaned)
@@ -246,7 +323,6 @@ func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManage
 		}()
 
 	case audio.StateProcessing:
-		// Ignore — transcription already in flight.
 		log.Println("busy — transcription in progress")
 	}
 }

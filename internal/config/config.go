@@ -11,11 +11,11 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"golang.design/x/hotkey"
 	"gopkg.in/yaml.v3"
+
+	"github.com/erdiegoant/gowhisper/internal/mode"
 )
 
 // Combo is the parsed representation of a hotkey string (e.g. "option+shift+k").
-// It mirrors hotkey.Modifier / hotkey.Key so callers can pass it directly to the
-// hotkey package without importing config.
 type Combo struct {
 	Mods []hotkey.Modifier
 	Key  hotkey.Key
@@ -30,10 +30,11 @@ type raw struct {
 	LogLevel            string     `yaml:"log_level"`
 	Claude              claudeRaw  `yaml:"claude"`
 	Hotkeys             hotkeysRaw `yaml:"hotkeys"`
+	Modes               []modeRaw  `yaml:"modes"`
 }
 
 type claudeRaw struct {
-	APIKey         string `yaml:"api_key"`         // falls back to ANTHROPIC_API_KEY env var
+	APIKey         string `yaml:"api_key"`
 	Model          string `yaml:"model"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
@@ -44,7 +45,14 @@ type hotkeysRaw struct {
 	ChangeMode      string `yaml:"change_mode"`
 }
 
-// Combos holds the parsed hotkey combos derived from HotkeysRaw.
+type modeRaw struct {
+	Name      string `yaml:"name"`
+	Language  string `yaml:"language"`
+	Translate bool   `yaml:"translate"`
+	Prompt    string `yaml:"prompt"`
+}
+
+// Combos holds the parsed hotkey combos.
 type Combos struct {
 	Toggle Combo
 	Cancel Combo
@@ -58,13 +66,23 @@ type ClaudeConfig struct {
 	TimeoutSeconds int
 }
 
+// ChangeEvent is passed to OnChange callbacks describing what changed on reload.
+type ChangeEvent struct {
+	Combos        Combos
+	CombosChanged bool
+	Model         string
+	ModelChanged  bool
+	Modes         []mode.Mode
+	ModesChanged  bool
+}
+
 // Manager owns the parsed config and the fsnotify watcher.
 type Manager struct {
 	mu       sync.RWMutex
 	cfg      raw
 	combos   Combos
-	dir      string // directory containing config.yaml (also used for state.json)
-	onChange []func(newCombos Combos, combosChanged bool, newModel string, modelChanged bool)
+	dir      string
+	onChange []func(ChangeEvent)
 	watcher  *fsnotify.Watcher
 	debounce *time.Timer
 }
@@ -87,14 +105,12 @@ var defaults = raw{
 }
 
 // Load reads (or creates) the config file at path and starts a file watcher.
-// Call Close when done.
 func Load(path string) (*Manager, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
 
-	// Write defaults if the file doesn't exist yet.
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if writeErr := writeDefaults(path); writeErr != nil {
 			log.Printf("config: could not write default config: %v", writeErr)
@@ -112,8 +128,6 @@ func Load(path string) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Watch only the specific file, not the whole directory, so state.json
-	// changes don't trigger a config reload.
 	if err := watcher.Add(path); err != nil {
 		_ = watcher.Close()
 		return nil, err
@@ -138,7 +152,7 @@ func (m *Manager) ModelPath() string {
 	return resolveModelPath(m.cfg)
 }
 
-// Language returns the configured language string (e.g. "auto", "es").
+// Language returns the configured language string.
 func (m *Manager) Language() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -161,13 +175,20 @@ func (m *Manager) ClaudeConfig() ClaudeConfig {
 	}
 }
 
+// Modes converts the raw modes list to []mode.Mode.
+// Returns mode.DefaultModes if no modes are defined in config.
+func (m *Manager) Modes() []mode.Mode {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return parseModes(m.cfg.Modes)
+}
+
 // Dir returns the config directory (also used for state.json).
 func (m *Manager) Dir() string { return m.dir }
 
-// OnChange registers a callback invoked when a reload changes combos or the model.
-// combosChanged and modelChanged indicate which parts differ from the previous config.
-// The callback runs on the watcher goroutine — it must not block; use go func if needed.
-func (m *Manager) OnChange(fn func(newCombos Combos, combosChanged bool, newModel string, modelChanged bool)) {
+// OnChange registers a callback invoked when a reload produces any change.
+// The callback runs on the watcher goroutine — it must not block.
+func (m *Manager) OnChange(fn func(ChangeEvent)) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.onChange = append(m.onChange, fn)
@@ -207,12 +228,12 @@ func (m *Manager) watchLoop(path string) {
 	}
 }
 
-// reloadAndNotify re-parses the config file and fires OnChange callbacks for any
-// differences in combos or model.
+// reloadAndNotify re-parses config and fires OnChange if anything changed.
 func (m *Manager) reloadAndNotify(path string) {
 	m.mu.Lock()
 	oldCombos := m.combos
 	oldModel := resolveModelPath(m.cfg)
+	oldModes := m.cfg.Modes
 
 	if err := m.reload(path); err != nil {
 		log.Printf("config: reload error: %v — keeping previous config", err)
@@ -220,17 +241,21 @@ func (m *Manager) reloadAndNotify(path string) {
 		return
 	}
 
-	newCombos := m.combos
-	newModel := resolveModelPath(m.cfg)
-	callbacks := make([]func(Combos, bool, string, bool), len(m.onChange))
+	evt := ChangeEvent{
+		Combos:        m.combos,
+		CombosChanged: !combosEqual(oldCombos, m.combos),
+		Model:         resolveModelPath(m.cfg),
+		ModelChanged:  resolveModelPath(m.cfg) != oldModel,
+		Modes:         parseModes(m.cfg.Modes),
+		ModesChanged:  !modesEqual(oldModes, m.cfg.Modes),
+	}
+	callbacks := make([]func(ChangeEvent), len(m.onChange))
 	copy(callbacks, m.onChange)
 	m.mu.Unlock()
 
-	combosChanged := !combosEqual(oldCombos, newCombos)
-	modelChanged := oldModel != newModel
-	if combosChanged || modelChanged {
+	if evt.CombosChanged || evt.ModelChanged || evt.ModesChanged {
 		for _, fn := range callbacks {
-			fn(newCombos, combosChanged, newModel, modelChanged)
+			fn(evt)
 		}
 	}
 }
@@ -252,7 +277,6 @@ func (m *Manager) reload(path string) error {
 	for _, e := range errs {
 		log.Printf("config: hotkey parse error: %v — keeping previous binding", e)
 	}
-	// For fields that failed to parse, fall back to the current combo.
 	if errs != nil {
 		prev := m.combos
 		if comboZero(combos.Toggle) {
@@ -267,17 +291,50 @@ func (m *Manager) reload(path string) error {
 	}
 
 	warnConflicts(combos)
-
 	m.cfg = next
 	m.combos = combos
 	return nil
 }
 
-// parseCombos parses all three hotkey strings. Returns any errors per-field.
+// parseModes converts []modeRaw to []mode.Mode, applying language default.
+// Returns mode.DefaultModes if the list is empty.
+func parseModes(raw []modeRaw) []mode.Mode {
+	if len(raw) == 0 {
+		return mode.DefaultModes
+	}
+	modes := make([]mode.Mode, len(raw))
+	for i, r := range raw {
+		lang := r.Language
+		if lang == "" {
+			lang = "auto"
+		}
+		modes[i] = mode.Mode{
+			Name:      r.Name,
+			Language:  lang,
+			Translate: r.Translate,
+			Prompt:    r.Prompt,
+		}
+	}
+	return modes
+}
+
+// modesEqual reports whether two raw mode lists are identical.
+func modesEqual(a, b []modeRaw) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// parseCombos parses all three hotkey strings.
 func parseCombos(h hotkeysRaw) (Combos, []error) {
 	var c Combos
 	var errs []error
-
 	if t, err := parseCombo(h.ToggleRecording); err != nil {
 		errs = append(errs, err)
 	} else {
@@ -349,8 +406,7 @@ func applyDefaults(c *raw) {
 
 // resolveModelPath expands ~ and builds the full path to the model binary.
 func resolveModelPath(c raw) string {
-	dir := expandTilde(c.ModelsDir)
-	return filepath.Join(dir, "ggml-"+c.Model+".bin")
+	return filepath.Join(expandTilde(c.ModelsDir), "ggml-"+c.Model+".bin")
 }
 
 // expandTilde replaces a leading ~ with the user's home directory.
@@ -365,10 +421,10 @@ func expandTilde(p string) string {
 	return filepath.Join(home, p[1:])
 }
 
-// comboZero reports whether c has no key set (used to detect a failed parse).
+// comboZero reports whether c has no key set.
 func comboZero(c Combo) bool { return c.Key == 0 && len(c.Mods) == 0 }
 
-// comboEqual compares two Combos field by field (slices are not comparable with ==).
+// comboEqual compares two Combo values field by field.
 func comboEqual(a, b Combo) bool {
 	if a.Key != b.Key || len(a.Mods) != len(b.Mods) {
 		return false
@@ -408,6 +464,29 @@ hotkeys:
   toggle_recording: "option+space"
   cancel_recording: "esc"
   change_mode: "option+shift+k"
+
+# Custom modes — uncomment and edit to add your own.
+# Each mode can optionally override the cleanup system prompt sent to Claude.
+# Omitting "prompt" uses the built-in cleanup prompt (removes filler words, fixes punctuation).
+#
+# modes:
+#   - name: Standard
+#     language: auto
+#     translate: false
+#
+#   - name: Translate
+#     language: es
+#     translate: true
+#
+#   - name: Formal
+#     language: auto
+#     translate: false
+#     prompt: "Rewrite this transcript in a formal professional tone. Preserve all technical terms and code identifiers. Return only the result."
+#
+#   - name: Bullets
+#     language: auto
+#     translate: false
+#     prompt: "Convert this dictation into a concise bullet point list. Preserve technical terms. Return only the result."
 `
 	return os.WriteFile(path, []byte(template), 0o644)
 }
