@@ -8,8 +8,8 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 - **Cancel recording** — press Esc to discard mid-recording, nothing is pasted
 - **Cycle modes** — press ⌥⇧K to switch between Standard, Translate, and custom modes
 - **ES → EN translation** — Whisper's native translation, no LLM needed
-- **LLM post-processing** — optional Ollama integration for cleanup, formatting, and custom modes
-- **Custom modes** — define your own prompts in `config.yaml`, cycle through them with a hotkey
+- **LLM post-processing** — optional Claude API integration for cleanup, formatting, and custom prompts
+- **Custom modes** — define your own prompts in `config.yaml`, cycle through them with a hotkey or pick from the tray menu
 - **Hot-reloadable config** — change hotkeys or models without restarting
 - **No cloud, no subscription** — everything runs on your machine
 
@@ -23,7 +23,7 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 | Global hotkeys | [golang.design/x/hotkey](https://pkg.go.dev/golang.design/x/hotkey) |
 | Clipboard | CGo + NSPasteboard (AppKit) + CGEventPost |
 | Menubar icon | [fyne.io/systray](https://github.com/fyne-io/systray) |
-| LLM post-processing | [Ollama](https://ollama.com) (local, optional) |
+| LLM post-processing | Claude API via `net/http` (optional, key via env or config) |
 | Native macOS UI | [DarwinKit](https://github.com/progrium/darwinkit) (Phase 9) |
 | Config | `config.yaml` with live file watching (Phase 5) |
 
@@ -42,7 +42,7 @@ All hotkeys are configurable in `config.yaml` (Phase 5).
 - macOS 13.0+
 - [Xcode Command Line Tools](https://developer.apple.com/xcode/resources/) — `xcode-select --install`
 - [cmake](https://cmake.org) — `brew install cmake`
-- [Ollama](https://ollama.com) (optional, for LLM modes)
+- Claude API key (optional, for LLM transcript cleanup — set `ANTHROPIC_API_KEY` or add to `config.yaml`)
 
 ## Getting Started
 
@@ -104,7 +104,7 @@ Press **Esc** at any point while recording to cancel (nothing is pasted).
 
 ## Configuration
 
-Config lives at `~/.config/gowhisper/config.yaml` (Phase 5 — coming soon):
+Config lives at `~/.config/gowhisper/config.yaml` (created automatically on first launch):
 
 ```yaml
 model: small
@@ -112,30 +112,29 @@ language: auto
 models_dir: "~/.config/gowhisper/models"
 max_recording_seconds: 120
 
-ollama:
-  enabled: false
-  endpoint: "http://localhost:11434"
-  model: llama3.2:3b
-  timeout_seconds: 10
+claude:
+  api_key: ""             # leave empty to use ANTHROPIC_API_KEY env var
+  model: "claude-haiku-4-5-20251001"
+  timeout_seconds: 15
 
 hotkeys:
   toggle_recording: "option+space"
   cancel_recording: "esc"
   change_mode: "option+shift+k"
 
-modes:
-  - name: raw
-    llm: false
-  - name: cleanup
-    llm: true
-    prompt: "Clean up this transcript. Remove filler words, fix punctuation, keep the meaning intact. Return only the result."
-  - name: formal
-    llm: true
-    prompt: "Rewrite this in a formal professional tone. Return only the result."
-  - name: bullets
-    llm: true
-    prompt: "Convert this dictation into a concise bullet point list. Return only the result."
+# Custom modes — omit this block to use the built-in Standard + Translate defaults.
+# modes:
+#   - name: Standard
+#     language: auto
+#   - name: Formal
+#     language: auto
+#     prompt: "Rewrite this transcript in a formal professional tone. Preserve all technical terms. Return only the result."
+#   - name: Bullets
+#     language: auto
+#     prompt: "Convert this dictation into a concise bullet point list. Return only the result."
 ```
+
+All changes are applied live on save — no restart required.
 
 ## Makefile Targets
 
@@ -162,7 +161,7 @@ internal/
   hotkey/             # Global hotkeys (toggle always-on, Esc only while recording)
   clipboard/          # NSPasteboard save/restore + Cmd+V simulation via CGo
   config/             # Config loading and file watcher (Phase 5)
-  llm/                # Ollama HTTP client (Phase 6)
+  llm/                # Claude API HTTP client for transcript cleanup
   ui/                 # Menubar tray icon + microphone device submenu
 third_party/
   whisper.cpp/        # whisper.cpp source (git submodule)
@@ -180,7 +179,7 @@ phases/               # Development plan (phase-by-phase)
 | 4 | Translation flow | ✅ Done |
 | 5 | Config & shortcuts | ✅ Done |
 | 6 | LLM transcript cleanup (Claude API) | ✅ Done |
-| 7 | Custom modes | Not started |
+| 7 | Custom modes | ✅ Done |
 | 8 | Polish & reliability | Not started |
 | 9 | Native macOS UI (DarwinKit) | Not started |
 | 10 | Optional extras | Not started |

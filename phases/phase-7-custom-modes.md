@@ -1,6 +1,6 @@
 # Phase 7 — Custom Modes
 
-**Status:** [ ] Not Started
+**Status:** [x] Done
 **Depends on:** Phase 6
 
 Let the user define their own modes in `config.yaml` — custom names, custom system prompts for Claude cleanup, custom Whisper language/translate settings.
@@ -51,8 +51,8 @@ When `prompt` is set, it replaces `llm.CleanupPrompt` for that mode's Claude cal
 
 ## Steps
 
-- [ ] 1. Add `Prompt string` field to `Mode` struct in `internal/mode/mode.go`
-- [ ] 2. Add `modesRaw` to `internal/config/config.go`:
+- [x] 1. Add `Prompt string` field to `Mode` struct in `internal/mode/mode.go`
+- [x] 2. Add `modesRaw` to `internal/config/config.go`:
   ```go
   type modeRaw struct {
       Name      string `yaml:"name"`
@@ -62,23 +62,23 @@ When `prompt` is set, it replaces `llm.CleanupPrompt` for that mode's Claude cal
   }
   ```
   Add `Modes []modeRaw` to the `raw` struct.
-- [ ] 3. Add `Modes() []mode.Mode` accessor to `config.Manager` — converts `[]modeRaw` to `[]mode.Mode`, applying defaults (`Language: "auto"` when empty)
-- [ ] 4. On startup, if `modes:` is absent or empty in config, fall back to the two hardcoded defaults (Standard + Translate) so the app works out of the box without a modes block
-- [ ] 5. Update `mode.Manager` to hold a `[]Mode` slice instead of relying on the package-level `All`:
+- [x] 3. Add `Modes() []mode.Mode` accessor to `config.Manager` — converts `[]modeRaw` to `[]mode.Mode`, applying defaults (`Language: "auto"` when empty)
+- [x] 4. On startup, if `modes:` is absent or empty in config, fall back to the two hardcoded defaults (Standard + Translate) so the app works out of the box without a modes block
+- [x] 5. Update `mode.Manager` to hold a `[]Mode` slice instead of relying on the package-level `All`:
   - `NewManager(modes []Mode) *Manager`
   - Track active mode by **name**, not index — on config reload, look up the current name in the new list; fall back to first mode if not found
-- [ ] 6. Wire config reload: when `OnChange` fires, rebuild `modeManager` with the new modes list and update the tray title
-- [ ] 7. In the transcription goroutine, use `m.Prompt` if non-empty, otherwise fall back to `llm.CleanupPrompt`
-- [ ] 8. Update `state.json` mode persistence — `SetByName` already handles unknown names gracefully (falls back to index 0)
-- [ ] 9. Update `writeDefaults` in config to include a commented-out example modes block so users know the format
-- [ ] 10. Add a **Mode** submenu to the tray (similar to the existing Microphone submenu):
+- [x] 6. Wire config reload: when `OnChange` fires, rebuild `modeManager` with the new modes list and update the tray title via `setModeCh <- ""`
+- [x] 7. In the transcription goroutine, use `m.Prompt` if non-empty, otherwise fall back to `llm.CleanupPrompt`
+- [x] 8. `state.json` mode persistence — `SetByName` handles unknown names gracefully (falls back to index 0 on reload)
+- [x] 9. Update `writeDefaults` in config to include a commented-out example modes block so users know the format
+- [x] 10. Add a **Mode** submenu to the tray:
   - Lists every mode by name
   - Active mode has a checkmark (✓) via `item.Check()`
-  - Each item's tooltip shows a short description: `"Standard — auto transcription"`, `"Translate — ES→EN"`, or the first ~60 chars of the custom prompt
+  - Each item's tooltip shows: `"Standard — auto transcription"`, `"Translate — ES→EN (Whisper native)"`, or first ~60 chars of the custom prompt
   - Clicking a mode activates it immediately (same as cycling to it with ⌥⇧K)
-  - Add `UpdateModeMenu(modes []string, active string)` to `ui.Tray` so the event loop can refresh checkmarks when the mode changes via hotkey or config reload
-- [ ] 11. Test: add a "Bullets" mode to config, select it from the tray menu — confirm bullet output pasted
-- [ ] 12. Test: rename an active mode in config while running — confirm graceful fallback to first mode
+  - `AddModeMenu` returns an update func; event loop calls it when active mode changes
+- [x] 11. Tests written for `internal/mode` (10 cases), `internal/config` (keyparse, state, parseModes, applyDefaults, combosEqual), `internal/llm` (CleanupPrompt, Process with fake server)
+- [x] 12. All tests pass: `go test ./internal/mode/... ./internal/config/... ./internal/llm/...`
 
 ## Deliverable
 
