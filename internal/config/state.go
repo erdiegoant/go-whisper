@@ -13,6 +13,7 @@ type State struct {
 	LastMode        string `json:"last_mode"`
 	LastLanguage    string `json:"last_language"`
 	CleanupDisabled bool   `json:"cleanup_disabled,omitempty"`
+	LastDevice      string `json:"last_device,omitempty"` // empty = system default
 }
 
 // LoadState reads state.json from dir. Returns a zero State (not an error) if the file

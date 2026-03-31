@@ -124,10 +124,29 @@ func main() {
 			for _, d := range devices {
 				names = append(names, d.Name())
 			}
+
+			// Restore last-used device from state.json, if still available.
+			if state, err := config.LoadState(cfg.Dir()); err == nil && state.LastDevice != "" {
+				restored := false
+				for i := range devices {
+					if devices[i].Name() == state.LastDevice {
+						id := devices[i].ID
+						capturer.SetDevice(&id)
+						log.Printf("mic: restored saved device %q", state.LastDevice)
+						restored = true
+						break
+					}
+				}
+				if !restored {
+					log.Printf("mic: saved device %q not available — using default", state.LastDevice)
+				}
+			}
+
 			tray.AddDeviceMenu(names, func(name string) {
 				if name == "Default" {
 					capturer.SetDevice(nil)
 					log.Println("mic: using system default device")
+					go saveDevice(cfg.Dir(), "")
 					return
 				}
 				for i := range devices {
@@ -135,6 +154,7 @@ func main() {
 						id := devices[i].ID
 						capturer.SetDevice(&id)
 						log.Printf("mic: selected %q", name)
+						go saveDevice(cfg.Dir(), name)
 						return
 					}
 				}
@@ -442,6 +462,17 @@ func handleToggle(
 
 	case audio.StateProcessing:
 		log.Println("busy — transcription in progress")
+	}
+}
+
+// saveDevice persists the selected microphone name to state.json.
+// It loads the current state first so other fields are not overwritten.
+// Pass an empty string to record that the user chose the system default.
+func saveDevice(dir, name string) {
+	state, _ := config.LoadState(dir)
+	state.LastDevice = name
+	if err := config.SaveState(dir, state); err != nil {
+		log.Printf("state: save device failed: %v", err)
 	}
 }
 
