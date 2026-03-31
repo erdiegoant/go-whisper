@@ -1,6 +1,6 @@
 # Phase 4 — Translation Flow
 
-**Status:** [ ] Not Started
+**Status:** [x] Done
 **Depends on:** Phase 3
 
 Make ES↔EN translation work seamlessly as a separate mode.

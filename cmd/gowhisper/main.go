@@ -9,11 +9,10 @@ import (
 	"github.com/erdiegoant/gowhisper/internal/audio"
 	"github.com/erdiegoant/gowhisper/internal/clipboard"
 	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
+	"github.com/erdiegoant/gowhisper/internal/mode"
 	"github.com/erdiegoant/gowhisper/internal/transcribe"
 	"github.com/erdiegoant/gowhisper/internal/ui"
 )
-
-const currentMode = "Raw" // placeholder until Phase 7 mode system
 
 func main() {
 	transcribe.SuppressLogs()
@@ -86,7 +85,8 @@ func main() {
 				log.Fatalf("failed to register hotkeys: %v", err)
 			}
 			defer hkManager.Close()
-			runEventLoop(capturer, tr, hkManager, tray)
+			modeManager := &mode.Manager{}
+			runEventLoop(capturer, tr, hkManager, tray, modeManager)
 		}()
 	})
 }
@@ -97,30 +97,32 @@ func runEventLoop(
 	tr *transcribe.Transcriber,
 	hkManager *ghotkey.Manager,
 	tray *ui.Tray,
+	modeManager *mode.Manager,
 ) {
-	tray.SetIdle(currentMode)
+	tray.SetIdle(modeManager.Current().Name)
 	log.Println("ready — ⌥Space to record, Esc to cancel, ⌥⇧K to change mode")
 
 	for action := range hkManager.C() {
 		switch action {
 		case ghotkey.ActionToggle:
-			handleToggle(capturer, tr, hkManager, tray)
+			handleToggle(capturer, tr, hkManager, tray, modeManager)
 
 		case ghotkey.ActionCancel:
 			capturer.Cancel()
 			hkManager.DisableCancel()
-			tray.SetIdle(currentMode)
+			tray.SetIdle(modeManager.Current().Name)
 			log.Println("recording cancelled")
 
 		case ghotkey.ActionMode:
-			// Mode cycling — full implementation in Phase 7.
-			log.Println("mode: (not yet implemented)")
+			m := modeManager.Next()
+			tray.SetIdle(m.Name)
+			log.Printf("mode: switched to %s", m.Name)
 		}
 	}
 }
 
 // handleToggle manages the IDLE→RECORDING→PROCESSING→IDLE transition.
-func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManager *ghotkey.Manager, tray *ui.Tray) {
+func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManager *ghotkey.Manager, tray *ui.Tray, modeManager *mode.Manager) {
 	switch capturer.CurrentState() {
 	case audio.StateIdle:
 		if err := capturer.Start(); err != nil {
@@ -128,7 +130,7 @@ func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManage
 			return
 		}
 		hkManager.EnableCancel()
-		tray.SetRecording(currentMode)
+		tray.SetRecording(modeManager.Current().Name)
 		log.Println("recording started")
 
 	case audio.StateRecording:
@@ -138,7 +140,7 @@ func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManage
 			return
 		}
 		hkManager.DisableCancel()
-		tray.SetProcessing(currentMode)
+		tray.SetProcessing(modeManager.Current().Name)
 
 		var sum float64
 		for _, s := range samples {
@@ -150,14 +152,18 @@ func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManage
 		}
 		log.Printf("captured %d samples — RMS energy: %.6f — transcribing...", len(samples), rms)
 
+		// Snapshot mode at recording-stop time so a mid-flight mode change doesn't affect this result.
+		m := modeManager.Current()
+
 		// Transcribe and paste in a goroutine so the hotkey loop stays responsive.
 		go func() {
 			result, err := tr.Transcribe(transcribe.TranscribeRequest{
-				Samples:  samples,
-				Language: "auto",
+				Samples:   samples,
+				Language:  m.Language,
+				Translate: m.Translate,
 			})
 			capturer.SetIdle()
-			tray.SetIdle(currentMode)
+			tray.SetIdle(modeManager.Current().Name)
 
 			if err != nil {
 				log.Printf("transcription: %v", err)

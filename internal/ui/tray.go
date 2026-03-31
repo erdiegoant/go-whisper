@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	iconIdle       = "⬜" // shown in menu title — actual icon is set via systray.SetTitle
+	iconIdle       = "⚫" // shown in menu title — actual icon is set via systray.SetTitle
 	iconRecording  = "🔴"
 	iconProcessing = "⏳"
 )
@@ -25,7 +25,7 @@ func New() *Tray {
 // is initialised and the run loop is live.
 func (t *Tray) Run(onReady func()) {
 	systray.Run(func() {
-		systray.SetTitle("⬜ GoWhisper")
+		systray.SetTitle("⚫ GoWhisper")
 		systray.SetTooltip("GoWhisper — idle")
 
 		mQuit := systray.AddMenuItem("Quit", "Quit GoWhisper")
@@ -43,7 +43,7 @@ func (t *Tray) Run(onReady func()) {
 
 // SetIdle updates the tray icon to the idle state.
 func (t *Tray) SetIdle(mode string) {
-	label := "⬜ " + mode
+	label := "⚫ " + mode
 	systray.SetTitle(label)
 	systray.SetTooltip("GoWhisper — idle")
 }
