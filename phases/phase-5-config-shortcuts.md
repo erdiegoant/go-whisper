@@ -7,57 +7,40 @@ Make the app fully configurable without recompiling, including hotkeys.
 
 ## Steps
 
-- [ ] 1. Create `~/.config/gowhisper/config.yaml` with sane defaults:
+- [x] 1. `~/.config/gowhisper/config.yaml` auto-created on first launch with defaults:
 
 ```yaml
-model: small              # tiny | small | medium
-language: auto            # auto | es | en
+model: small
+language: auto
 models_dir: "~/.config/gowhisper/models"
-max_recording_seconds: 120  # hard cap before forced stop (no VAD)
-log_level: info             # debug | info | warn | error
-notifications_enabled: true
+max_recording_seconds: 120
+log_level: info
 
-ollama:
-  enabled: false
-  endpoint: "http://localhost:11434"
-  model: llama3.2:3b
-  timeout_seconds: 10
+claude:
+  api_key: ""
+  model: "claude-haiku-4-5-20251001"
+  timeout_seconds: 15
 
 hotkeys:
   toggle_recording: "option+space"
   cancel_recording: "esc"
   change_mode: "option+shift+k"
-
-modes:
-  default: raw
 ```
 
-- [ ] 2. Implement config loading at startup — parse hotkey strings into combos the `golang.design/x/hotkey` listener understands
-- [ ] 3. Implement **hotkey rebinding at runtime** — when config changes on disk, reload hotkeys without restarting using `github.com/fsnotify/fsnotify`
-  - Unregister old hotkeys, register new ones. Document that there is a brief gap (~ms) during the swap.
-- [ ] 4. Validate hotkey config on load:
-  - Detect conflicts (two actions mapped to the same key combo) — log a warning, last definition wins
-  - Detect invalid key strings — log an error and keep the previous binding
-- [ ] 5. Handle model change on config reload:
-  - If `model:` value changes, unload the current model from memory and load the new one
-  - Resolve model path as: `{models_dir}/ggml-{model}.bin`
-- [ ] 6. Persist last-used mode and language to `~/.config/gowhisper/state.json` (NOT back into `config.yaml`):
-  ```json
-  { "last_mode": "cleanup", "last_language": "es" }
-  ```
-  Read on startup, restore to last state.
-- [ ] 7. Add a `--config` CLI flag to point to a custom config file path
-- [ ] 8. Test: change `toggle_recording` in config, confirm the new hotkey works without restarting
-- [ ] 9. Test: change `model: small` to `model: tiny`, confirm the model swaps without restart
+- [x] 2. `internal/config/` package: YAML loading, `internal/config/keyparse.go` parses hotkey strings into `hotkey.Modifier`/`hotkey.Key`
+- [x] 3. fsnotify hot-reload (200ms debounce) — hotkeys and model rebind/swap on save without restart
+- [x] 4. Conflict detection (log warning) and invalid key handling (keep previous binding)
+- [x] 5. Model change on config reload: `Transcriber.Swap()` holds mutex, waits for in-flight transcription
+- [x] 6. `state.json` for runtime state (`last_mode`, `last_language`) — never written back to config.yaml
+- [x] 7. `--config` CLI flag for custom config path
+- [x] 8. "Open Config" tray menu item — opens config.yaml in the default system app
 
 ## Deliverable
 
-Fully configurable app where all hotkeys are user-defined and hot-reloadable from `config.yaml`.
+`internal/config/Manager` with `Combos()`, `ModelPath()`, `ClaudeConfig()`, `OnChange()`, `Dir()`. Hot-reload works for hotkeys and model.
 
 ## Notes
 
-- Default hotkeys match Superwhisper's defaults: ⌥Space toggle, Esc cancel, ⌥⇧K mode change
-- `option+space` avoids the `ctrl+shift+space` conflict with macOS input source switchers
-- Last-used state in `state.json` keeps `config.yaml` clean and version-control friendly
-- `models_dir` must be consistent between Phase 2 (model loading) and this config — absolute path, tilde expanded at load time
-- Missing config fields from earlier phases that must be added here: `models_dir`, `max_recording_seconds`, `log_level`, `notifications_enabled`, `ollama.endpoint`
+- `state.json` lives alongside `config.yaml` in the config dir
+- fsnotify watches the specific config file only — state.json changes don't trigger a reload
+- `claude.api_key` falls back to `ANTHROPIC_API_KEY` env var if empty

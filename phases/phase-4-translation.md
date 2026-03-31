@@ -3,28 +3,23 @@
 **Status:** [x] Done
 **Depends on:** Phase 3
 
-Make ES↔EN translation work seamlessly as a separate mode.
+Add ES→EN translation as a second mode alongside Standard dictation.
 
 ## Steps
 
-- [ ] 1. Translation is a **mode**, not a separate toggle hotkey — it fits naturally into the mode cycle introduced in Phase 3 (Change Mode: ⌥⇧K). No new hotkey needed.
-- [ ] 2. Add a `translate` mode to the hardcoded mode list for now (Phase 7 makes this config-driven):
-  - When active: `SetLanguage("es")` + `SetTranslate(true)` for ES→EN
-  - When inactive: normal dictation mode
-- [ ] 3. Implement auto language detection option — `ctx.SetLanguage("auto")` lets Whisper detect the input language automatically
-  - Note: "auto" + translate quirk — if the input is already English and translate is on, Whisper still runs the translation pathway (slower, occasionally degrades quality). Prefer explicit `"es"` when you know the source language.
-- [ ] 4. For ES→EN: `SetLanguage("es")` + `SetTranslate(true)` — this is Whisper's native path, higher quality than LLM translation
-- [ ] 5. For EN→ES: Whisper only translates *into* English natively — flag in mode config as `llm: true`; handled in Phase 6 via Ollama prompt
-- [ ] 6. Show the active mode name in the tray icon (e.g. update the placeholder systray tooltip or title)
-- [ ] 7. Test: activate translate mode with ⌥⇧K, record Spanish speech, confirm English text is pasted
-- [ ] 8. Test: press Esc during translate mode recording, confirm nothing is pasted
+- [x] 1. Translation is a **mode** cycled by ⌥⇧K — no separate hotkey needed
+- [x] 2. `internal/mode/` package: `Mode` struct (`Name`, `Language`, `Translate`), `All` slice, `Manager` with `Current`/`Next`/`SetByName`
+- [x] 3. Two modes: **Standard** (`Language="auto"`, `Translate=false`) and **Translate** (`Language="es"`, `Translate=true`)
+- [x] 4. Mode snapshotted at recording-stop time — a mid-flight mode change doesn't affect the in-progress transcription
+- [x] 5. Active mode name shown in tray title (e.g. `⚫ Standard`, `🔴 Translate`)
+- [x] 6. Last-used mode persisted to `state.json` and restored on next launch (implemented in Phase 5)
 
 ## Deliverable
 
-Two working modes accessible via the mode cycle hotkey — dictate (transcribe as-is) and translate (ES→EN). Cancel works correctly in both modes.
+Two working modes via ⌥⇧K. Tray title reflects active mode. Cancel works in both modes.
 
 ## Notes
 
-- Whisper's built-in translation only goes TO English — EN→ES requires Ollama (Phase 6, `translate_to_spanish` mode)
-- ES→EN via Whisper is higher quality than ES→EN via LLM prompt — always prefer the native path
-- No dedicated translate toggle hotkey — ⌥⇧K cycles through all modes including translate
+- Whisper native translation only goes TO English — ES→EN is high quality via this path
+- EN→ES is not implemented and not planned
+- Mode name was changed from "Raw" to "Standard" during implementation
