@@ -18,7 +18,8 @@ const anthropicVersion = "2023-06-01"
 // exactly as spoken — tuned for dictation to AI agents, Claude Code, and Slack.
 const CleanupPrompt = `You are a transcript cleanup assistant. The user dictated this text using voice recognition.
 Clean it up: fix punctuation, capitalization, and grammar. Remove filler words (um, uh, like, you know, actually, basically, sort of, right).
-Keep all technical terms, CLI commands, flag names, code identifiers, API names, product names, agent names, and proper nouns exactly as spoken — do not translate or paraphrase them.
+Correct phonetic approximations of technical terms to their proper technical form. Examples: "lm" or "llm" → "LLM", "dot env" or "mp" or "dot mp" → ".env", "jamal" or "yaml" → "YAML", "jason" → "JSON", "gee it" or "git" → "git", "docker" → "Docker", "kubernetes" or "koobs" → "Kubernetes", "pie thon" → "Python", "type script" → "TypeScript", "sequel" → "SQL", "jay es" → "JS", "react" → "React". Apply the same reasoning to any other tool, framework, language, config format, or CLI name.
+Keep all already-correct technical terms, CLI commands, flag names, code identifiers, API names, product names, and agent names exactly as spoken.
 Return only the cleaned text with no explanation or preamble.`
 
 // Client sends transcripts to the Claude API for cleanup.
