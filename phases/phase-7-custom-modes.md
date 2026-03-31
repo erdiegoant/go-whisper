@@ -71,12 +71,18 @@ When `prompt` is set, it replaces `llm.CleanupPrompt` for that mode's Claude cal
 - [ ] 7. In the transcription goroutine, use `m.Prompt` if non-empty, otherwise fall back to `llm.CleanupPrompt`
 - [ ] 8. Update `state.json` mode persistence — `SetByName` already handles unknown names gracefully (falls back to index 0)
 - [ ] 9. Update `writeDefaults` in config to include a commented-out example modes block so users know the format
-- [ ] 10. Test: add a "Bullets" mode to config, cycle to it, dictate — confirm bullet output pasted
-- [ ] 11. Test: rename an active mode in config while running — confirm graceful fallback to first mode
+- [ ] 10. Add a **Mode** submenu to the tray (similar to the existing Microphone submenu):
+  - Lists every mode by name
+  - Active mode has a checkmark (✓) via `item.Check()`
+  - Each item's tooltip shows a short description: `"Standard — auto transcription"`, `"Translate — ES→EN"`, or the first ~60 chars of the custom prompt
+  - Clicking a mode activates it immediately (same as cycling to it with ⌥⇧K)
+  - Add `UpdateModeMenu(modes []string, active string)` to `ui.Tray` so the event loop can refresh checkmarks when the mode changes via hotkey or config reload
+- [ ] 11. Test: add a "Bullets" mode to config, select it from the tray menu — confirm bullet output pasted
+- [ ] 12. Test: rename an active mode in config while running — confirm graceful fallback to first mode
 
 ## Deliverable
 
-Modes fully driven by `config.yaml`. Hardcoded `All` slice removed. Users can add unlimited modes with custom prompts without touching code.
+Modes fully driven by `config.yaml`. Hardcoded `All` slice removed. Users can add unlimited modes with custom prompts without touching code. Mode picker in the tray menubar lists all modes with checkmarks and prompt previews as tooltips.
 
 ## Notes
 
