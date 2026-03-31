@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"log"
+	"os/exec"
+
 	"fyne.io/systray"
 )
 
@@ -58,6 +61,20 @@ func (t *Tray) SetRecording(mode string) {
 func (t *Tray) SetProcessing(mode string) {
 	systray.SetTitle("⏳ " + mode)
 	systray.SetTooltip("GoWhisper — transcribing")
+}
+
+// AddOpenConfigItem adds an "Open Config" menu item that opens path in the
+// default application for .yaml files (e.g. VS Code, TextEdit).
+// Must be called after Run's onReady fires.
+func (t *Tray) AddOpenConfigItem(path string) {
+	item := systray.AddMenuItem("Open Config", "Edit ~/.config/gowhisper/config.yaml")
+	go func() {
+		for range item.ClickedCh {
+			if err := exec.Command("open", path).Start(); err != nil {
+				log.Printf("tray: open config: %v", err)
+			}
+		}
+	}()
 }
 
 // AddDeviceMenu adds a "Microphone" submenu listing the given device names.

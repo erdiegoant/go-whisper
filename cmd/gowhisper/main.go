@@ -89,6 +89,8 @@ func main() {
 			log.Printf("mic: could not list devices: %v", err)
 		}
 
+		tray.AddOpenConfigItem(configPath)
+
 		go func() {
 			combos := cfg.Combos()
 			hkManager, err := ghotkey.New(
