@@ -1,6 +1,6 @@
 # Phase 5 — Config & Shortcut Customization
 
-**Status:** [ ] Not Started
+**Status:** [x] Done
 **Depends on:** Phase 3
 
 Make the app fully configurable without recompiling, including hotkeys.

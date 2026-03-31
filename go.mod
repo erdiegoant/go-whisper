@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	fyne.io/systray v1.12.0 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gen2brain/malgo v0.11.24 // indirect
 	github.com/ggerganov/whisper.cpp/bindings/go v0.0.0-20260329120436-95ea8f9bfb03 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
@@ -13,4 +14,5 @@ require (
 	golang.org/x/image v0.28.0 // indirect
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f // indirect
 	golang.org/x/sys v0.33.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

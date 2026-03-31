@@ -178,7 +178,7 @@ phases/               # Development plan (phase-by-phase)
 | 2 | Whisper.cpp integration | ✅ Done |
 | 3 | Hotkey & clipboard | ✅ Done |
 | 4 | Translation flow | ✅ Done |
-| 5 | Config & shortcuts | Not started |
+| 5 | Config & shortcuts | ✅ Done |
 | 6 | Ollama LLM post-processing | Not started |
 | 7 | Custom modes | Not started |
 | 8 | Polish & reliability | Not started |

@@ -26,3 +26,15 @@ func (m *Manager) Next() Mode {
 	m.idx = (m.idx + 1) % len(All)
 	return All[m.idx]
 }
+
+// SetByName sets the active mode to the one with the given name.
+// Returns false if no matching mode is found (index is unchanged).
+func (m *Manager) SetByName(name string) bool {
+	for i, mode := range All {
+		if mode.Name == name {
+			m.idx = i
+			return true
+		}
+	}
+	return false
+}

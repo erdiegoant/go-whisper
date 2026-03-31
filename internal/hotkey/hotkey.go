@@ -3,6 +3,7 @@ package hotkey
 import (
 	"fmt"
 	"log"
+	"sync"
 
 	"golang.design/x/hotkey"
 )
@@ -16,57 +17,89 @@ const (
 	ActionMode                 // cycle to next mode
 )
 
+// Combo is a parsed hotkey combination. config.Combo mirrors this type so the
+// config package can produce values without the hotkey package importing config.
+type Combo struct {
+	Mods []hotkey.Modifier
+	Key  hotkey.Key
+}
+
 // Manager registers global hotkeys and emits Actions on a channel.
-// Toggle (⌥Space) and Mode (⌥⇧K) are always registered.
-// Cancel (Esc) is registered only while recording via EnableCancel/DisableCancel.
+// Toggle and Mode are always registered. Cancel (Esc by default) is registered
+// only while recording via EnableCancel/DisableCancel.
 type Manager struct {
-	ch       chan Action
-	toggleHK *hotkey.Hotkey
-	modeHK   *hotkey.Hotkey
-	cancelHK *hotkey.Hotkey // nil when not recording
+	mu          sync.Mutex
+	ch          chan Action
+	toggleHK    *hotkey.Hotkey
+	modeHK      *hotkey.Hotkey
+	cancelHK    *hotkey.Hotkey // nil when not recording
+	cancelCombo Combo          // stored so the next EnableCancel uses the current config
 }
 
 // New creates a Manager and registers the always-on hotkeys.
-func New() (*Manager, error) {
+func New(toggle, mode Combo) (*Manager, error) {
 	m := &Manager{
-		ch: make(chan Action, 4),
+		ch:          make(chan Action, 4),
+		cancelCombo: Combo{Key: hotkey.KeyEscape},
 	}
 
-	toggle := hotkey.New([]hotkey.Modifier{hotkey.ModOption}, hotkey.KeySpace)
-	if err := toggle.Register(); err != nil {
-		return nil, fmt.Errorf("hotkey: register toggle: %w", err)
+	if err := m.registerToggle(toggle); err != nil {
+		return nil, err
 	}
-	m.toggleHK = toggle
-	go func() {
-		for range toggle.Keydown() {
-			m.ch <- ActionToggle
-		}
-	}()
-
-	mode := hotkey.New([]hotkey.Modifier{hotkey.ModOption, hotkey.ModShift}, hotkey.KeyK)
-	if err := mode.Register(); err != nil {
+	if err := m.registerMode(mode); err != nil {
 		m.Close()
-		return nil, fmt.Errorf("hotkey: register mode: %w", err)
+		return nil, err
 	}
-	m.modeHK = mode
-	go func() {
-		for range mode.Keydown() {
-			m.ch <- ActionMode
-		}
-	}()
 
-	log.Println("hotkey: registered ⌥Space (toggle), ⌥⇧K (mode) — Esc active only while recording")
+	log.Printf("hotkey: registered toggle=%v mode=%v — Esc active only while recording", toggle, mode)
 	return m, nil
 }
 
-// EnableCancel registers the Esc hotkey. Call when entering RECORDING state.
+// Rebind atomically swaps the toggle and mode hotkeys to new combos.
+// There is a brief (~1–2 ms) gap between unregister and register during which
+// keypresses are not captured; this is an unavoidable limitation of the Carbon API.
+// If called while recording, cancelHK is left untouched; cancelCombo is updated for
+// the next EnableCancel call.
+func (m *Manager) Rebind(toggle, mode, cancel Combo) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Unregister and re-register toggle.
+	if m.toggleHK != nil {
+		if err := m.toggleHK.Unregister(); err != nil {
+			log.Printf("hotkey: rebind: unregister toggle: %v", err)
+		}
+		m.toggleHK = nil
+	}
+	if err := m.registerToggleLocked(toggle); err != nil {
+		log.Printf("hotkey: rebind: register toggle: %v", err)
+	}
+
+	// Unregister and re-register mode.
+	if m.modeHK != nil {
+		if err := m.modeHK.Unregister(); err != nil {
+			log.Printf("hotkey: rebind: unregister mode: %v", err)
+		}
+		m.modeHK = nil
+	}
+	if err := m.registerModeLocked(mode); err != nil {
+		log.Printf("hotkey: rebind: register mode: %v", err)
+	}
+
+	// Update stored cancel combo; active cancelHK (if recording) is left alone.
+	m.cancelCombo = cancel
+}
+
+// EnableCancel registers the cancel hotkey. Call when entering RECORDING state.
 func (m *Manager) EnableCancel() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.cancelHK != nil {
 		return
 	}
-	hk := hotkey.New([]hotkey.Modifier{}, hotkey.Key(0x35))
+	hk := hotkey.New(m.cancelCombo.Mods, m.cancelCombo.Key)
 	if err := hk.Register(); err != nil {
-		log.Printf("hotkey: register Esc: %v", err)
+		log.Printf("hotkey: register cancel: %v", err)
 		return
 	}
 	m.cancelHK = hk
@@ -77,13 +110,15 @@ func (m *Manager) EnableCancel() {
 	}()
 }
 
-// DisableCancel unregisters the Esc hotkey. Call when leaving RECORDING state.
+// DisableCancel unregisters the cancel hotkey. Call when leaving RECORDING state.
 func (m *Manager) DisableCancel() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.cancelHK == nil {
 		return
 	}
 	if err := m.cancelHK.Unregister(); err != nil {
-		log.Printf("hotkey: unregister Esc: %v", err)
+		log.Printf("hotkey: unregister cancel: %v", err)
 	}
 	m.cancelHK = nil
 }
@@ -96,6 +131,8 @@ func (m *Manager) C() <-chan Action {
 // Close unregisters all hotkeys.
 func (m *Manager) Close() {
 	m.DisableCancel()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.toggleHK != nil {
 		if err := m.toggleHK.Unregister(); err != nil {
 			log.Printf("hotkey: unregister toggle: %v", err)
@@ -108,4 +145,46 @@ func (m *Manager) Close() {
 		}
 		m.modeHK = nil
 	}
+}
+
+// --- internal helpers ---
+
+func (m *Manager) registerToggle(c Combo) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.registerToggleLocked(c)
+}
+
+func (m *Manager) registerToggleLocked(c Combo) error {
+	hk := hotkey.New(c.Mods, c.Key)
+	if err := hk.Register(); err != nil {
+		return fmt.Errorf("hotkey: register toggle: %w", err)
+	}
+	m.toggleHK = hk
+	go func() {
+		for range hk.Keydown() {
+			m.ch <- ActionToggle
+		}
+	}()
+	return nil
+}
+
+func (m *Manager) registerMode(c Combo) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.registerModeLocked(c)
+}
+
+func (m *Manager) registerModeLocked(c Combo) error {
+	hk := hotkey.New(c.Mods, c.Key)
+	if err := hk.Register(); err != nil {
+		return fmt.Errorf("hotkey: register mode: %w", err)
+	}
+	m.modeHK = hk
+	go func() {
+		for range hk.Keydown() {
+			m.ch <- ActionMode
+		}
+	}()
+	return nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/erdiegoant/gowhisper/internal/audio"
 	"github.com/erdiegoant/gowhisper/internal/clipboard"
+	"github.com/erdiegoant/gowhisper/internal/config"
 	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
 	"github.com/erdiegoant/gowhisper/internal/mode"
 	"github.com/erdiegoant/gowhisper/internal/transcribe"
@@ -15,26 +17,36 @@ import (
 )
 
 func main() {
+	var configPath string
+	flag.StringVar(&configPath, "config", "", "path to config.yaml (default: ~/.config/gowhisper/config.yaml)")
+	flag.Parse()
+
+	if configPath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			log.Fatalf("cannot resolve home dir: %v", err)
+		}
+		configPath = filepath.Join(home, ".config", "gowhisper", "config.yaml")
+	}
+
 	transcribe.SuppressLogs()
 
-	// Step 3 — Accessibility permission check.
+	// Accessibility permission check.
 	if !ghotkey.CheckAccessibility() {
 		fmt.Println("GoWhisper needs Accessibility access.")
 		fmt.Println("Please grant it in System Settings → Privacy & Security → Accessibility, then relaunch.")
-		// AXIsProcessTrustedWithOptions with kAXTrustedCheckOptionPrompt:YES
-		// already opened the dialog; we exit cleanly so the user can grant and relaunch.
 		os.Exit(0)
 	}
 
-	// Load Whisper model.
-	home, err := os.UserHomeDir()
+	// Load config (creates defaults if missing).
+	cfg, err := config.Load(configPath)
 	if err != nil {
-		log.Fatalf("cannot resolve home dir: %v", err)
+		log.Fatalf("failed to load config: %v", err)
 	}
-	modelPath := filepath.Join(home, ".config", "gowhisper", "models", "ggml-small.bin")
+	defer cfg.Close()
 
-	log.Printf("loading model: %s", modelPath)
-	tr, err := transcribe.New(modelPath)
+	log.Printf("loading model: %s", cfg.ModelPath())
+	tr, err := transcribe.New(cfg.ModelPath())
 	if err != nil {
 		log.Fatalf("failed to load model: %v", err)
 	}
@@ -49,8 +61,6 @@ func main() {
 	defer capturer.Close()
 
 	// Start the systray on the main goroutine — this call blocks until Quit.
-	// Hotkeys are registered inside onReady, from a background goroutine, so
-	// that golang.design/x/hotkey's dispatch_sync(main_queue) does not deadlock.
 	tray := ui.New()
 	tray.Run(func() {
 		// Build the microphone submenu from available capture devices.
@@ -80,13 +90,46 @@ func main() {
 		}
 
 		go func() {
-			hkManager, err := ghotkey.New()
+			combos := cfg.Combos()
+			hkManager, err := ghotkey.New(
+				ghotkey.Combo(combos.Toggle),
+				ghotkey.Combo(combos.Mode),
+			)
 			if err != nil {
 				log.Fatalf("failed to register hotkeys: %v", err)
 			}
 			defer hkManager.Close()
+
 			modeManager := &mode.Manager{}
-			runEventLoop(capturer, tr, hkManager, tray, modeManager)
+
+			// Restore last-used mode from state.json.
+			if state, err := config.LoadState(cfg.Dir()); err == nil && state.LastMode != "" {
+				modeManager.SetByName(state.LastMode)
+			}
+
+			// React to config file changes.
+			cfg.OnChange(func(newCombos config.Combos, combosChanged bool, newModel string, modelChanged bool) {
+				if combosChanged {
+					hkManager.Rebind(
+						ghotkey.Combo(newCombos.Toggle),
+						ghotkey.Combo(newCombos.Mode),
+						ghotkey.Combo(newCombos.Cancel),
+					)
+					log.Println("config: hotkeys reloaded")
+				}
+				if modelChanged {
+					go func() {
+						log.Printf("config: loading new model: %s", newModel)
+						if err := tr.Swap(newModel); err != nil {
+							log.Printf("config: model swap failed: %v", err)
+						} else {
+							log.Printf("config: model swapped to %s", newModel)
+						}
+					}()
+				}
+			})
+
+			runEventLoop(capturer, tr, hkManager, tray, modeManager, cfg)
 		}()
 	})
 }
@@ -98,6 +141,7 @@ func runEventLoop(
 	hkManager *ghotkey.Manager,
 	tray *ui.Tray,
 	modeManager *mode.Manager,
+	cfg *config.Manager,
 ) {
 	tray.SetIdle(modeManager.Current().Name)
 	log.Println("ready — ⌥Space to record, Esc to cancel, ⌥⇧K to change mode")
@@ -105,7 +149,7 @@ func runEventLoop(
 	for action := range hkManager.C() {
 		switch action {
 		case ghotkey.ActionToggle:
-			handleToggle(capturer, tr, hkManager, tray, modeManager)
+			handleToggle(capturer, tr, hkManager, tray, modeManager, cfg)
 
 		case ghotkey.ActionCancel:
 			capturer.Cancel()
@@ -117,12 +161,13 @@ func runEventLoop(
 			m := modeManager.Next()
 			tray.SetIdle(m.Name)
 			log.Printf("mode: switched to %s", m.Name)
+			go persistState(cfg, m)
 		}
 	}
 }
 
 // handleToggle manages the IDLE→RECORDING→PROCESSING→IDLE transition.
-func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManager *ghotkey.Manager, tray *ui.Tray, modeManager *mode.Manager) {
+func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManager *ghotkey.Manager, tray *ui.Tray, modeManager *mode.Manager, cfg *config.Manager) {
 	switch capturer.CurrentState() {
 	case audio.StateIdle:
 		if err := capturer.Start(); err != nil {
@@ -180,5 +225,15 @@ func handleToggle(capturer *audio.Capturer, tr *transcribe.Transcriber, hkManage
 	case audio.StateProcessing:
 		// Ignore — transcription already in flight.
 		log.Println("busy — transcription in progress")
+	}
+}
+
+// persistState saves the current mode to state.json asynchronously.
+func persistState(cfg *config.Manager, m mode.Mode) {
+	if err := config.SaveState(cfg.Dir(), config.State{
+		LastMode:     m.Name,
+		LastLanguage: m.Language,
+	}); err != nil {
+		log.Printf("state: save failed: %v", err)
 	}
 }
