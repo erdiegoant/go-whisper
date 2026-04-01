@@ -34,6 +34,7 @@ whisper:
 build:
 	@echo "Building $(BINARY)..."
 	$(CGO_ENV) go build $(BUILD_FLAGS) -o $(APP_BUNDLE) ./cmd/$(BINARY)/
+	@mkdir -p GoWhisper.app/Contents/Resources
 	@cp assets/AppIcon.icns GoWhisper.app/Contents/Resources/AppIcon.icns
 	@echo "Binary: $(APP_BUNDLE)"
 
