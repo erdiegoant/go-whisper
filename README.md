@@ -211,7 +211,7 @@ phases/               # Development plan (phase-by-phase)
 | 7 | Custom modes | ✅ Done |
 | 8 | Polish & reliability | ✅ Done |
 | 9 | Native macOS UI (SwiftUI) | ⏸ Postponed |
-| 10 | Local LLM backend (Ollama) | Not started |
+| 10 | Local LLM backend (Ollama) | ✅ Done |
 | 11 | Optional extras | Not started |
 
 ## License

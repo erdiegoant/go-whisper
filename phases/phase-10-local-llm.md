@@ -1,6 +1,6 @@
 # Phase 10 — Local LLM Backend (Ollama)
 
-**Status:** [ ] Not Started
+**Status:** ✅ Done
 **Depends on:** Phase 8
 
 Add Ollama as an optional local LLM backend for transcript cleanup. Users who don't have (or don't want) a Claude API key can run a local model with no internet round-trip and no cost.

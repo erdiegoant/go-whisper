@@ -23,21 +23,28 @@ type Combo struct {
 
 // raw is the YAML structure — field names match the config file keys.
 type raw struct {
-	Model               string     `yaml:"model"`
-	Language            string     `yaml:"language"`
-	ModelsDir           string     `yaml:"models_dir"`
-	MaxRecordingSeconds int        `yaml:"max_recording_seconds"`
-	LogLevel            string     `yaml:"log_level"`
-	SoundEnabled        *bool      `yaml:"sound_enabled"`
-	NotificationsEnabled *bool     `yaml:"notifications_enabled"`
-	Claude              claudeRaw  `yaml:"claude"`
-	Hotkeys             hotkeysRaw `yaml:"hotkeys"`
-	Modes               []modeRaw  `yaml:"modes"`
+	Model                string     `yaml:"model"`
+	Language             string     `yaml:"language"`
+	ModelsDir            string     `yaml:"models_dir"`
+	MaxRecordingSeconds  int        `yaml:"max_recording_seconds"`
+	LogLevel             string     `yaml:"log_level"`
+	SoundEnabled         *bool      `yaml:"sound_enabled"`
+	NotificationsEnabled *bool      `yaml:"notifications_enabled"`
+	Claude               claudeRaw  `yaml:"claude"`
+	Ollama               ollamaRaw  `yaml:"ollama"`
+	Hotkeys              hotkeysRaw `yaml:"hotkeys"`
+	Modes                []modeRaw  `yaml:"modes"`
 }
 
 type claudeRaw struct {
 	APIKey         string `yaml:"api_key"`
 	Model          string `yaml:"model"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
+}
+
+type ollamaRaw struct {
+	Model          string `yaml:"model"`
+	Host           string `yaml:"host"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
 
@@ -65,6 +72,13 @@ type Combos struct {
 type ClaudeConfig struct {
 	APIKey         string
 	Model          string
+	TimeoutSeconds int
+}
+
+// OllamaConfig holds the Ollama local LLM settings.
+type OllamaConfig struct {
+	Model          string
+	Host           string
 	TimeoutSeconds int
 }
 
@@ -174,6 +188,18 @@ func (m *Manager) ClaudeConfig() ClaudeConfig {
 		APIKey:         key,
 		Model:          m.cfg.Claude.Model,
 		TimeoutSeconds: m.cfg.Claude.TimeoutSeconds,
+	}
+}
+
+// OllamaConfig returns the Ollama local LLM settings.
+// Model is empty string when Ollama is not configured.
+func (m *Manager) OllamaConfig() OllamaConfig {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return OllamaConfig{
+		Model:          m.cfg.Ollama.Model,
+		Host:           m.cfg.Ollama.Host,
+		TimeoutSeconds: m.cfg.Ollama.TimeoutSeconds,
 	}
 }
 
@@ -430,6 +456,12 @@ func applyDefaults(c *raw) {
 	}
 	if c.Claude.TimeoutSeconds == 0 {
 		c.Claude.TimeoutSeconds = defaults.Claude.TimeoutSeconds
+	}
+	if c.Ollama.Host == "" {
+		c.Ollama.Host = "http://localhost:11434"
+	}
+	if c.Ollama.TimeoutSeconds == 0 {
+		c.Ollama.TimeoutSeconds = 30
 	}
 	if c.Hotkeys.ToggleRecording == "" {
 		c.Hotkeys.ToggleRecording = defaults.Hotkeys.ToggleRecording

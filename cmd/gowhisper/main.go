@@ -64,12 +64,15 @@ func main() {
 	defer tr.Close()
 	log.Println("model loaded")
 
-	var llmClient *llm.Client
-	if cc := cfg.ClaudeConfig(); cc.APIKey != "" {
+	var llmClient llm.Processor
+	if oc := cfg.OllamaConfig(); oc.Model != "" {
+		llmClient = llm.NewOllama(oc.Model, oc.Host, oc.TimeoutSeconds)
+		log.Printf("llm: Ollama (%s @ %s)", oc.Model, oc.Host)
+	} else if cc := cfg.ClaudeConfig(); cc.APIKey != "" {
 		llmClient = llm.New(cc.APIKey, cc.Model, cc.TimeoutSeconds)
-		log.Println("llm: Claude cleanup ready")
+		log.Printf("llm: Claude (%s)", cc.Model)
 	} else {
-		log.Println("llm: no API key set — transcripts will not be cleaned up")
+		log.Println("llm: no backend configured — cleanup disabled")
 	}
 
 	capturer, err := audio.New()
