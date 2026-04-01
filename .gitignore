@@ -2,7 +2,7 @@
 GoWhisper.app/Contents/MacOS/gowhisper
 
 # Models (large binary files — download via make download-model)
-models/
+/models/
 ~/.config/gowhisper/models/
 
 # whisper.cpp cmake build artifacts

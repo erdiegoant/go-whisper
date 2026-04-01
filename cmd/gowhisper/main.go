@@ -14,13 +14,29 @@ import (
 	"github.com/erdiegoant/gowhisper/internal/audio"
 	"github.com/erdiegoant/gowhisper/internal/config"
 	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
+	"github.com/erdiegoant/gowhisper/internal/history"
 	"github.com/erdiegoant/gowhisper/internal/llm"
 	"github.com/erdiegoant/gowhisper/internal/mode"
+	"github.com/erdiegoant/gowhisper/internal/models"
 	"github.com/erdiegoant/gowhisper/internal/transcribe"
 	"github.com/erdiegoant/gowhisper/internal/ui"
 )
 
 func main() {
+	// Subcommand: gowhisper download-model [tiny|small|medium]
+	if len(os.Args) >= 2 && os.Args[1] == "download-model" {
+		size := "small"
+		if len(os.Args) >= 3 {
+			size = os.Args[2]
+		}
+		dir := defaultModelsDir()
+		if err := models.Download(size, dir); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	var configPath string
 	flag.StringVar(&configPath, "config", "", "path to config.yaml (default: ~/.config/gowhisper/config.yaml)")
 	flag.Parse()
@@ -63,6 +79,13 @@ func main() {
 	}
 	defer tr.Close()
 	log.Println("model loaded")
+
+	hist, err := history.Open(cfg.Dir())
+	if err != nil {
+		log.Printf("history: could not open database: %v — history disabled", err)
+	} else {
+		defer hist.Close()
+	}
 
 	var llmClient llm.Processor
 	if oc := cfg.OllamaConfig(); oc.Model != "" {
@@ -183,7 +206,7 @@ func main() {
 				}
 			})
 
-			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu)
+			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, hist, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu)
 		}()
 	})
 }

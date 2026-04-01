@@ -2,12 +2,14 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/erdiegoant/gowhisper/internal/audio"
 	"github.com/erdiegoant/gowhisper/internal/chunk"
 	"github.com/erdiegoant/gowhisper/internal/clipboard"
 	"github.com/erdiegoant/gowhisper/internal/config"
 	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
+	"github.com/erdiegoant/gowhisper/internal/history"
 	"github.com/erdiegoant/gowhisper/internal/llm"
 	"github.com/erdiegoant/gowhisper/internal/mode"
 	"github.com/erdiegoant/gowhisper/internal/notify"
@@ -24,6 +26,7 @@ func runEventLoop(
 	tray *ui.Tray,
 	modeManager *mode.Manager,
 	llmClient llm.Processor,
+	hist *history.Log,
 	cfg *config.Manager,
 	setModeCh <-chan string,
 	cleanupCh <-chan bool,
@@ -61,7 +64,7 @@ func runEventLoop(
 			}
 			switch action {
 			case ghotkey.ActionToggle:
-				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, cfg, cleanupEnabled, updateModeMenu)
+				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, hist, cfg, cleanupEnabled, updateModeMenu)
 
 			case ghotkey.ActionCancel:
 				capturer.Cancel()
@@ -106,6 +109,7 @@ func handleToggle(
 	tray *ui.Tray,
 	modeManager *mode.Manager,
 	llmClient llm.Processor,
+	hist *history.Log,
 	cfg *config.Manager,
 	cleanupEnabled bool,
 	updateModeMenu func(string),
@@ -124,6 +128,7 @@ func handleToggle(
 		log.Println("recording started")
 
 	case audio.StateRecording:
+		recordingStart := time.Now()
 		samples, err := capturer.Stop()
 		if err != nil {
 			log.Printf("failed to stop recording: %v", err)
@@ -209,6 +214,26 @@ func handleToggle(
 			if err := clipboard.Paste(text); err != nil {
 				log.Printf("paste failed: %v", err)
 				return
+			}
+
+			if hist != nil {
+				prompt := m.Prompt
+				if prompt == "" && llmClient != nil && cleanupEnabled {
+					prompt = "[default cleanup prompt]"
+				}
+				go func() {
+					if err := hist.Add(history.Entry{
+						Timestamp:     time.Now().UTC(),
+						ModeName:      m.Name,
+						PromptUsed:    prompt,
+						RawText:       result,
+						ProcessedText: text,
+						DurationMs:    time.Since(recordingStart).Milliseconds(),
+						Language:      m.Language,
+					}); err != nil {
+						log.Printf("history: write failed: %v", err)
+					}
+				}()
 			}
 
 			if cfg.NotificationsEnabled() {

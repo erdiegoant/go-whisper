@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/erdiegoant/gowhisper/internal/config"
 	"github.com/erdiegoant/gowhisper/internal/mode"
@@ -29,6 +31,12 @@ func modeTooltip(m mode.Mode) string {
 		return m.Name + " — ES→EN (Whisper native)"
 	}
 	return m.Name + " — auto transcription"
+}
+
+// defaultModelsDir returns ~/.config/gowhisper/models.
+func defaultModelsDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "gowhisper", "models")
 }
 
 // saveDevice persists the selected microphone name to state.json.

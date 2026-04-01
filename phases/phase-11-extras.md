@@ -1,6 +1,6 @@
 # Phase 11 — Optional Extras (Post-MVP)
 
-**Status:** [ ] Not Started
+**Status:** 🔄 Partial — History log and Auto-update models done; Push to Talk, Mouse shortcut, Transcribe from file, and Streaming deferred
 **Depends on:** Phase 9
 
 Nice-to-haves once everything is solid. Each feature ships independently.
