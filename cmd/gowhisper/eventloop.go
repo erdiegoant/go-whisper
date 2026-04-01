@@ -26,6 +26,7 @@ func runEventLoop(
 	tray *ui.Tray,
 	modeManager *mode.Manager,
 	llmClient llm.Processor,
+	defaultPrompt string,
 	hist *history.Log,
 	cfg *config.Manager,
 	setModeCh <-chan string,
@@ -201,7 +202,7 @@ func handleToggle(
 			if llmClient != nil && cleanupEnabled {
 				prompt := m.Prompt
 				if prompt == "" {
-					prompt = llm.CleanupPrompt
+					prompt = defaultPrompt
 				}
 				if cleaned, err := llmClient.Process(prompt, result); err != nil {
 					log.Printf("llm: cleanup failed, using raw transcript: %v", err)

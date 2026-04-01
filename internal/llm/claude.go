@@ -24,8 +24,22 @@ The user dictated this text using voice recognition. Clean it up:
 - Correct phonetic approximations of technical terms to their proper technical form. Examples: "lm" or "llm" → "LLM", "dot env" or "mp" or "dot mp" → ".env", "jamal" or "yaml" → "YAML", "jason" → "JSON", "gee it" or "git" → "git", "docker" → "Docker", "kubernetes" or "koobs" → "Kubernetes", "pie thon" → "Python", "type script" → "TypeScript", "sequel" → "SQL", "jay es" → "JS", "react" → "React". Apply the same reasoning to any other tool, framework, language, config format, or CLI name.
 - Keep all already-correct technical terms, CLI commands, flag names, code identifiers, API names, product names, and agent names exactly as spoken.
 - When I say Cloud, I probably mean Claude. Infer from context.
+- Only shorten what the text says if given the context the user did not mean to say something or corrected it later.
 
 Reply with the cleaned text and nothing else.`
+
+// OllamaCleanupPrompt is a tighter variant of CleanupPrompt for local models,
+// which tend to add preamble or commentary if given any wiggle room.
+const OllamaCleanupPrompt = `Fix punctuation, capitalization, grammar, and filler words in the voice transcript below. Output the corrected text only — no intro, no explanation, no extra lines.
+
+Rules:
+- Remove filler words: um, uh, like, you know, actually, basically, sort of, right.
+- Fix phonetic tech terms: "llm"→"LLM", "dot env"→".env", "yaml"/"jamal"→"YAML", "jason"→"JSON", "pie thon"→"Python", "type script"→"TypeScript", "sequel"→"SQL", "kubernetes"/"koobs"→"Kubernetes", "docker"→"Docker", "react"→"React", "jay es"→"JS". Apply the same logic to any other tool or framework name.
+- Do not add, remove, or rephrase content — only clean up what is there.
+- If the user corrected themselves mid-sentence, keep only the correction.
+- "Cloud" likely means "Claude".
+
+Transcript:`
 
 // Client sends transcripts to the Claude API for cleanup.
 type Client struct {

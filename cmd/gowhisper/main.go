@@ -89,8 +89,10 @@ func main() {
 	}
 
 	var llmClient llm.Processor
+	defaultPrompt := llm.CleanupPrompt
 	if oc := cfg.OllamaConfig(); oc.Model != "" {
 		llmClient = llm.NewOllama(oc.Model, oc.Host, oc.TimeoutSeconds)
+		defaultPrompt = llm.OllamaCleanupPrompt
 		log.Printf("llm: Ollama (%s @ %s)", oc.Model, oc.Host)
 	} else if cc := cfg.ClaudeConfig(); cc.APIKey != "" {
 		llmClient = llm.New(cc.APIKey, cc.Model, cc.TimeoutSeconds)
@@ -227,7 +229,7 @@ func main() {
 				}
 			})
 
-			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, hist, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu)
+			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu)
 		}()
 	})
 }
