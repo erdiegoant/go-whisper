@@ -10,6 +10,9 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 - **ES → EN translation** — Whisper's native translation, no LLM needed
 - **LLM post-processing** — optional cleanup via Claude API or a local Ollama model (no API key needed)
 - **Custom modes** — define your own prompts in `config.yaml`, cycle through them with a hotkey or pick from the tray menu
+- **Model management from the tray** — switch between tiny/small/medium directly from the menu; download models you don't have with live progress; the active model hot-swaps without a restart
+- **Startup update check** — on launch GoWhisper silently checks Hugging Face for newer model files; if an update is found the tray shows `Models ●` and a notification appears
+- **Transcription history** — every transcription is saved to a local SQLite database; browse with `gowhisper history`
 - **Hot-reloadable config** — change hotkeys or models without restarting
 - **No cloud, no subscription** — everything runs on your machine
 
@@ -75,6 +78,8 @@ Downloads `ggml-small.bin` (~465MB) to `~/.config/gowhisper/models/`. Recommende
 | tiny | ~75MB | Fastest, lower accuracy |
 | small | ~465MB | Recommended |
 | medium | ~1.5GB | Most accurate, slower |
+
+You can also download or switch models at any time from the **Models** submenu in the tray icon — no restart required.
 
 ### 4. Run
 
@@ -204,7 +209,8 @@ internal/
   clipboard/          # NSPasteboard save/restore + Cmd+V simulation via CGo
   config/             # Config loading and file watcher (Phase 5)
   llm/                # Claude API HTTP client for transcript cleanup
-  ui/                 # Menubar tray icon + microphone device submenu
+  ui/                 # Menubar tray icon, device submenu, model management menu
+  models/             # Whisper model download, update checking, status
 third_party/
   whisper.cpp/        # whisper.cpp source (git submodule)
 GoWhisper.app/        # macOS app bundle with Info.plist
@@ -225,7 +231,7 @@ phases/               # Development plan (phase-by-phase)
 | 8 | Polish & reliability | ✅ Done |
 | 9 | Native macOS UI (SwiftUI) | ⏸ Postponed |
 | 10 | Local LLM backend (Ollama) | ✅ Done |
-| 11 | Optional extras | Not started |
+| 11 | Optional extras | 🔄 In progress |
 
 ## License
 

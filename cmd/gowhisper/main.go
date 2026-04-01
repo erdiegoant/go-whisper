@@ -18,6 +18,7 @@ import (
 	"github.com/erdiegoant/gowhisper/internal/llm"
 	"github.com/erdiegoant/gowhisper/internal/mode"
 	"github.com/erdiegoant/gowhisper/internal/models"
+	"github.com/erdiegoant/gowhisper/internal/notify"
 	"github.com/erdiegoant/gowhisper/internal/transcribe"
 	"github.com/erdiegoant/gowhisper/internal/ui"
 )
@@ -158,6 +159,26 @@ func main() {
 		} else {
 			log.Printf("mic: could not list devices: %v", err)
 		}
+
+		// Model menu — populate from disk immediately, then check for updates in background.
+		// var declared first so the closure below captures it by reference.
+		var modelMenu *ui.ModelMenu
+		modelMenu = tray.AddModelMenu(
+			models.LocalStatuses(cfg.ModelsDir()),
+			cfg.ModelSize(),
+			func(size string) { go handleModelSelect(size, cfg, modelMenu) },
+		)
+		go func() {
+			statuses := models.AllStatuses(cfg.ModelsDir())
+			modelMenu.Update(statuses, cfg.ModelSize())
+			for _, s := range statuses {
+				if s.HasUpdate {
+					modelMenu.SetHasUpdates(true)
+					notify.Show("GoWhisper", "Whisper model updates available — check the Models menu")
+					break
+				}
+			}
+		}()
 
 		go func() {
 			combos := cfg.Combos()

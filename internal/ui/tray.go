@@ -1,10 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"log"
 	"os/exec"
+	"sync"
 
 	"fyne.io/systray"
+
+	"github.com/erdiegoant/gowhisper/internal/models"
 )
 
 const (
@@ -166,4 +170,96 @@ func (t *Tray) AddCleanupToggle(enabled bool, onToggle func(bool)) func(bool) {
 // Done returns a channel that closes when the user clicks Quit.
 func (t *Tray) Done() <-chan struct{} {
 	return t.quitCh
+}
+
+// ModelMenu manages the "Models" submenu in the tray.
+type ModelMenu struct {
+	mu     sync.Mutex
+	parent *systray.MenuItem
+	items  map[string]*systray.MenuItem // size → item
+}
+
+// AddModelMenu adds a "Models" submenu listing tiny/small/medium models.
+// statuses describes the initial local state; currentModel is the active size.
+// onSelect is called with the model size string when the user clicks an item.
+// Must be called after Run's onReady fires.
+func (t *Tray) AddModelMenu(statuses []models.ModelStatus, currentModel string, onSelect func(size string)) *ModelMenu {
+	parent := systray.AddMenuItem("Models", "Switch or download Whisper models")
+	mm := &ModelMenu{
+		parent: parent,
+		items:  make(map[string]*systray.MenuItem),
+	}
+
+	for _, s := range statuses {
+		title := modelItemTitle(s, currentModel)
+		item := parent.AddSubMenuItem(title, "")
+		mm.items[s.Size] = item
+		if s.Size == currentModel {
+			item.Check()
+		}
+		go func(item *systray.MenuItem, size string) {
+			for range item.ClickedCh {
+				onSelect(size)
+			}
+		}(item, s.Size)
+	}
+
+	return mm
+}
+
+// Update refreshes all item titles and checkmarks based on new statuses.
+// Safe to call from any goroutine.
+func (mm *ModelMenu) Update(statuses []models.ModelStatus, currentModel string) {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	for _, s := range statuses {
+		item, ok := mm.items[s.Size]
+		if !ok {
+			continue
+		}
+		item.Enable()
+		item.SetTitle(modelItemTitle(s, currentModel))
+		if s.Size == currentModel {
+			item.Check()
+		} else {
+			item.Uncheck()
+		}
+	}
+}
+
+// SetDownloadProgress updates the title of the given model item to show
+// download progress. pct is in [0, 1]. Safe to call from any goroutine.
+func (mm *ModelMenu) SetDownloadProgress(size string, pct float64) {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	item, ok := mm.items[size]
+	if !ok {
+		return
+	}
+	item.SetTitle(fmt.Sprintf("⏳ %s %.0f%%", size, pct*100))
+	item.Disable()
+}
+
+// SetHasUpdates toggles the update badge on the parent "Models" item title.
+// Safe to call from any goroutine.
+func (mm *ModelMenu) SetHasUpdates(v bool) {
+	if v {
+		mm.parent.SetTitle("Models ●")
+	} else {
+		mm.parent.SetTitle("Models")
+	}
+}
+
+// modelItemTitle returns the display title for a model menu item.
+func modelItemTitle(s models.ModelStatus, currentModel string) string {
+	switch {
+	case s.HasUpdate && s.Size == currentModel:
+		return "⬆ " + s.Size + " (update)"
+	case s.HasUpdate:
+		return "⬆ " + s.Size
+	case !s.Installed:
+		return "⬇ " + s.Size
+	default:
+		return "  " + s.Size
+	}
 }

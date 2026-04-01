@@ -20,9 +20,17 @@ var checksums = map[string]string{
 	"ggml-medium.bin": "fd9727b6807d35349f9d8cedcf90d189816a243432dbcb65ac9b148c10030278",
 }
 
-// Download fetches model size (tiny|small|medium) into dir, showing progress.
-// Verifies SHA256 checksum after download. Safe to call if the file already exists.
+// Download fetches model size (tiny|small|medium) into dir, showing progress
+// on stdout. Verifies SHA256 checksum after download. Safe to call if the file
+// already exists.
 func Download(size, dir string) error {
+	return DownloadWithProgress(size, dir, nil)
+}
+
+// DownloadWithProgress is like Download but calls onProgress with a value in
+// [0, 1] as bytes arrive. onProgress may be nil. Safe to call concurrently
+// for different model sizes.
+func DownloadWithProgress(size, dir string, onProgress func(float64)) error {
 	size = strings.ToLower(strings.TrimSpace(size))
 	filename := "ggml-" + size + ".bin"
 	expected, ok := checksums[filename]
@@ -37,6 +45,9 @@ func Download(size, dir string) error {
 		fmt.Printf("Verifying existing %s... ", filename)
 		if sum, err := sha256File(dest); err == nil && sum == expected {
 			fmt.Println("already up to date.")
+			if onProgress != nil {
+				onProgress(1.0)
+			}
 			return nil
 		}
 		fmt.Println("checksum mismatch — re-downloading.")
@@ -67,7 +78,7 @@ func Download(size, dir string) error {
 	defer os.Remove(tmp)
 
 	total := resp.ContentLength
-	if err := copyWithProgress(f, resp.Body, total); err != nil {
+	if err := copyWithProgress(f, resp.Body, total, onProgress); err != nil {
 		f.Close()
 		return fmt.Errorf("models: write: %w", err)
 	}
@@ -90,7 +101,7 @@ func Download(size, dir string) error {
 	return nil
 }
 
-func copyWithProgress(dst io.Writer, src io.Reader, total int64) error {
+func copyWithProgress(dst io.Writer, src io.Reader, total int64, onProgress func(float64)) error {
 	buf := make([]byte, 32*1024)
 	var written int64
 	for {
@@ -104,6 +115,9 @@ func copyWithProgress(dst io.Writer, src io.Reader, total int64) error {
 				pct := float64(written) / float64(total) * 100
 				fmt.Printf("\r  %.1f%% (%.0f / %.0f MB)", pct,
 					float64(written)/1e6, float64(total)/1e6)
+				if onProgress != nil {
+					onProgress(float64(written) / float64(total))
+				}
 			}
 		}
 		if err == io.EOF {

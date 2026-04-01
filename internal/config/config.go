@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -97,6 +98,7 @@ type Manager struct {
 	mu       sync.RWMutex
 	cfg      raw
 	combos   Combos
+	path     string // absolute path to config.yaml
 	dir      string
 	onChange []func(ChangeEvent)
 	watcher  *fsnotify.Watcher
@@ -133,7 +135,7 @@ func Load(path string) (*Manager, error) {
 		}
 	}
 
-	m := &Manager{dir: dir}
+	m := &Manager{path: path, dir: dir}
 	m.cfg = defaults
 
 	if err := m.reload(path); err != nil {
@@ -166,6 +168,54 @@ func (m *Manager) ModelPath() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return resolveModelPath(m.cfg)
+}
+
+// ModelsDir returns the absolute path to the models directory.
+func (m *Manager) ModelsDir() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return expandTilde(m.cfg.ModelsDir)
+}
+
+// ModelSize returns the current model size string (e.g. "small").
+func (m *Manager) ModelSize() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg.Model
+}
+
+// SetModel replaces the model field in config.yaml with size, preserving all
+// comments and other settings. The fsnotify watcher will pick up the change
+// and hot-reload automatically.
+func (m *Manager) SetModel(size string) error {
+	data, err := os.ReadFile(m.path)
+	if err != nil {
+		return fmt.Errorf("config: read for SetModel: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	replaced := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "model:") && !strings.HasPrefix(trimmed, "models_dir") {
+			lines[i] = "model: " + size
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		lines = append([]string{"model: " + size}, lines...)
+	}
+
+	out := []byte(strings.Join(lines, "\n"))
+	tmp := m.path + ".tmp"
+	if err := os.WriteFile(tmp, out, 0o644); err != nil {
+		return fmt.Errorf("config: write tmp for SetModel: %w", err)
+	}
+	if err := os.Rename(tmp, m.path); err != nil {
+		return fmt.Errorf("config: rename for SetModel: %w", err)
+	}
+	return nil
 }
 
 // Language returns the configured language string.
