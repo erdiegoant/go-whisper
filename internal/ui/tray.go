@@ -8,6 +8,7 @@ import (
 
 	"fyne.io/systray"
 
+	"github.com/erdiegoant/gowhisper/internal/mode"
 	"github.com/erdiegoant/gowhisper/internal/models"
 )
 
@@ -84,6 +85,29 @@ func (t *Tray) AddOpenConfigItem(path string) {
 			}
 		}
 	}()
+}
+
+// ModeItems converts a []mode.Mode slice to []ModeItem, building tooltips.
+func ModeItems(modes []mode.Mode) []ModeItem {
+	items := make([]ModeItem, len(modes))
+	for i, m := range modes {
+		items[i] = ModeItem{Name: m.Name, Tooltip: modeTooltip(m)}
+	}
+	return items
+}
+
+// modeTooltip returns a short description used as the tray submenu tooltip.
+func modeTooltip(m mode.Mode) string {
+	if m.Prompt != "" {
+		if len(m.Prompt) > 60 {
+			return m.Prompt[:60] + "…"
+		}
+		return m.Prompt
+	}
+	if m.Translate {
+		return m.Name + " — ES→EN (Whisper native)"
+	}
+	return m.Name + " — auto transcription"
 }
 
 // AddModeMenu adds a "Mode" submenu listing the given modes.

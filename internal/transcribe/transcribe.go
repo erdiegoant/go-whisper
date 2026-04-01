@@ -73,7 +73,7 @@ func (t *Transcriber) Transcribe(req TranscribeRequest) (string, error) {
 	}
 
 	result := strings.TrimSpace(sb.String())
-	if result == "" || result == "[BLANK_AUDIO]" || result == "(music)" || result == "(Music)" {
+	if isSilence(result) {
 		return "", fmt.Errorf("transcribe: no speech detected")
 	}
 	return result, nil
@@ -92,6 +92,15 @@ func (t *Transcriber) Swap(modelPath string) error {
 	t.model.Close()
 	t.model = newModel
 	return nil
+}
+
+// isSilence reports whether Whisper returned a blank or non-speech marker.
+func isSilence(s string) bool {
+	switch strings.ToLower(s) {
+	case "", "[blank_audio]", "(music)":
+		return true
+	}
+	return false
 }
 
 // Close releases the model from memory.

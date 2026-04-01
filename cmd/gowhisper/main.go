@@ -200,7 +200,7 @@ func main() {
 
 			setModeCh := make(chan string, 4)
 			updateModeMenu := tray.AddModeMenu(
-				modeItems(modeManager.All()),
+				ui.ModeItems(modeManager.All()),
 				func(name string) { setModeCh <- name },
 			)
 			updateModeMenu(modeManager.Current().Name)

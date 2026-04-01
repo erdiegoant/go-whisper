@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const baseURL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
@@ -60,7 +62,13 @@ func DownloadWithProgress(size, dir string, onProgress func(float64)) error {
 	url := baseURL + "/" + filename
 	fmt.Printf("Downloading %s from Hugging Face...\n", filename)
 
-	resp, err := http.Get(url) //nolint:noctx
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("models: build request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("models: download: %w", err)
 	}
