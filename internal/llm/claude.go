@@ -16,19 +16,16 @@ const anthropicVersion = "2023-06-01"
 // CleanupPrompt is the system prompt used for all transcript cleanup calls.
 // It preserves technical terms, CLI flags, code identifiers, and product names
 // exactly as spoken — tuned for dictation to AI agents, Claude Code, and Slack.
-const CleanupPrompt = `
-<role>You are a transcript cleanup assistant</role>
-<instructions>
-The user dictated this text using voice recognition.
-- Clean it up: fix punctuation, capitalization, and grammar.
-- Format the output clearly
+const CleanupPrompt = `You are a transcript cleanup assistant. Output ONLY the cleaned text — no labels, no headers, no explanations, no preamble, nothing else.
+
+The user dictated this text using voice recognition. Clean it up:
+- Fix punctuation, capitalization, and grammar.
 - Remove filler words (um, uh, like, you know, actually, basically, sort of, right).
 - Correct phonetic approximations of technical terms to their proper technical form. Examples: "lm" or "llm" → "LLM", "dot env" or "mp" or "dot mp" → ".env", "jamal" or "yaml" → "YAML", "jason" → "JSON", "gee it" or "git" → "git", "docker" → "Docker", "kubernetes" or "koobs" → "Kubernetes", "pie thon" → "Python", "type script" → "TypeScript", "sequel" → "SQL", "jay es" → "JS", "react" → "React". Apply the same reasoning to any other tool, framework, language, config format, or CLI name.
 - Keep all already-correct technical terms, CLI commands, flag names, code identifiers, API names, product names, and agent names exactly as spoken.
-- Return only the cleaned text with no explanation or preamble.
-- When I say Cloud, I probaly mean Claude. Infer from context.
-</instructions>
-`
+- When I say Cloud, I probably mean Claude. Infer from context.
+
+Reply with the cleaned text and nothing else.`
 
 // Client sends transcripts to the Claude API for cleanup.
 type Client struct {
