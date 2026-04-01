@@ -101,6 +101,9 @@ func main() {
 	} else {
 		log.Println("llm: no backend configured — cleanup disabled")
 	}
+	if p := cfg.Prompt(); p != "" {
+		defaultPrompt = p
+	}
 
 	capturer, err := audio.New()
 	if err != nil {

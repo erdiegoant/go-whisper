@@ -35,6 +35,7 @@ type raw struct {
 	Ollama               ollamaRaw  `yaml:"ollama"`
 	Hotkeys              hotkeysRaw `yaml:"hotkeys"`
 	Modes                []modeRaw  `yaml:"modes"`
+	Prompt               string     `yaml:"prompt"`
 }
 
 type claudeRaw struct {
@@ -259,6 +260,13 @@ func (m *Manager) Modes() []mode.Mode {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return parseModes(m.cfg.Modes)
+}
+
+// Prompt returns the global cleanup prompt override, or "" if not set.
+func (m *Manager) Prompt() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg.Prompt
 }
 
 // LogLevel returns the configured log level string ("info" or "debug").
@@ -576,6 +584,10 @@ max_recording_seconds: 120
 log_level: info
 sound_enabled: true
 notifications_enabled: true
+
+# Global cleanup prompt — overrides the built-in prompt for all modes that don't define their own.
+# Leave commented out to use the built-in prompt.
+# prompt: "Your custom system prompt here. Reply with the cleaned text and nothing else."
 
 claude:
   api_key: ""             # leave empty to use ANTHROPIC_API_KEY environment variable
