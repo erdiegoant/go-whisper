@@ -46,11 +46,18 @@ All hotkeys are configurable in `config.yaml`.
 
 ## Requirements
 
+- **Apple Silicon Mac** (M1 or later) — Metal GPU acceleration is required; Intel Macs are not supported
 - macOS 13.0+
 - [Xcode Command Line Tools](https://developer.apple.com/xcode/resources/) — `xcode-select --install`
 - [cmake](https://cmake.org) — `brew install cmake`
 - Claude API key (optional, for cloud LLM cleanup — set `ANTHROPIC_API_KEY` or add to `config.yaml`)
 - [Ollama](https://ollama.com) (optional, alternative to Claude — local cleanup with no API key or internet)
+
+## Downloading a release
+
+Pre-built binaries are available on the [Releases](../../releases) page.
+
+> **Gatekeeper warning:** because the app is not signed with an Apple developer certificate, macOS will block it on first launch. To open it: right-click `GoWhisper.app` → **Open** → **Open** in the dialog. You only need to do this once.
 
 ## Getting Started
 
