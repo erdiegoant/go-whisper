@@ -1,5 +1,9 @@
 # GoWhisper
 
+<p align="center">
+  <img src="assets/GoWhisper - Icon - Full.png" alt="GoWhisper" width="200" />
+</p>
+
 A Superwhisper-inspired voice dictation and translation app for macOS, built in Go. Press a hotkey, speak, press it again — your words are transcribed and pasted into whatever app you're using. Runs fully locally with no cloud dependency.
 
 ## Features
