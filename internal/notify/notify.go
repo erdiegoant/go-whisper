@@ -1,32 +1,17 @@
 package notify
 
-// #cgo CFLAGS: -x objective-c
-// #cgo LDFLAGS: -framework UserNotifications -framework Foundation
-// #import <UserNotifications/UserNotifications.h>
+// #cgo CFLAGS: -x objective-c -Wno-deprecated-declarations
+// #cgo LDFLAGS: -framework Foundation
 // #import <Foundation/Foundation.h>
 // #include <stdlib.h>
 //
 // void show_notification(const char *title, const char *body) {
-//     NSString *nsTitle = [NSString stringWithUTF8String:title];
-//     NSString *nsBody  = [NSString stringWithUTF8String:body];
+//     NSUserNotification *notification = [[NSUserNotification alloc] init];
+//     notification.title           = [NSString stringWithUTF8String:title];
+//     notification.informativeText = [NSString stringWithUTF8String:body];
 //
 //     dispatch_async(dispatch_get_main_queue(), ^{
-//         UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-//
-//         [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
-//                               completionHandler:^(BOOL granted, NSError *error) {
-//             if (!granted) return;
-//
-//             UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-//             content.title = nsTitle;
-//             content.body  = nsBody;
-//
-//             NSString *identifier = [[NSUUID UUID] UUIDString];
-//             UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier
-//                                                                                   content:content
-//                                                                                   trigger:nil];
-//             [center addNotificationRequest:request withCompletionHandler:nil];
-//         }];
+//         [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
 //     });
 // }
 import "C"
