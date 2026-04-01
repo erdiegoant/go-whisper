@@ -600,17 +600,17 @@ hotkeys:
   change_mode: "option+shift+k"
 
 # Custom modes — uncomment and edit to add your own.
-# Each mode can optionally override the cleanup system prompt sent to Claude.
+# Each mode can optionally override the cleanup system prompt sent to the LLM.
 # Omitting "prompt" uses the built-in cleanup prompt (removes filler words, fixes punctuation).
 #
 # modes:
 #   - name: Standard
-#     language: auto
+#     language: auto       # let Whisper detect the language automatically
 #     translate: false
 #
-#   - name: Translate
-#     language: es
-#     translate: true
+#   - name: ES → EN        # speak in Spanish, get English output
+#     language: es         # tell Whisper to expect Spanish input
+#     translate: true      # use Whisper's native translation (no LLM required)
 #
 #   - name: Formal
 #     language: auto

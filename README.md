@@ -1,7 +1,7 @@
 # GoWhisper
 
 <p align="center">
-  <img src="assets/GoWhisper%20-%20Icon%20-%20Full.png" alt="GoWhisper" width="200" />
+  <img src="assets/GoWhisper-Icon.png" alt="GoWhisper" width="512" />
 </p>
 
 A Superwhisper-inspired voice dictation and translation app for macOS, built in Go. Press a hotkey, speak, press it again — your words are transcribed and pasted into whatever app you're using. Runs fully locally with no cloud dependency.
@@ -32,7 +32,7 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 | Menubar icon | [fyne.io/systray](https://github.com/fyne-io/systray) |
 | LLM post-processing | Claude API or local Ollama — both via `net/http`, both optional |
 | Native macOS UI | [DarwinKit](https://github.com/progrium/darwinkit) (Phase 9) |
-| Config | `config.yaml` with live file watching (Phase 5) |
+| Config | `config.yaml` with live file watching |
 
 ## Hotkeys (default)
 
@@ -42,7 +42,7 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 | Cancel recording | Esc |
 | Cycle mode | ⌥⇧K |
 
-All hotkeys are configurable in `config.yaml` (Phase 5).
+All hotkeys are configurable in `config.yaml`.
 
 ## Requirements
 
@@ -145,12 +145,21 @@ hotkeys:
 # Custom modes — omit this block to use the built-in Standard + Translate defaults.
 # modes:
 #   - name: Standard
-#     language: auto
+#     language: auto       # let Whisper detect the language automatically
+#     translate: false
+#
+#   - name: ES → EN        # speak in Spanish, get English output
+#     language: es         # tell Whisper to expect Spanish input
+#     translate: true      # use Whisper's native translation (no LLM required)
+#
 #   - name: Formal
 #     language: auto
+#     translate: false
 #     prompt: "Rewrite this transcript in a formal professional tone. Preserve all technical terms. Return only the result."
+#
 #   - name: Bullets
 #     language: auto
+#     translate: false
 #     prompt: "Convert this dictation into a concise bullet point list. Return only the result."
 ```
 
@@ -208,16 +217,22 @@ cmd/gowhisper/        # Main entry point and event loop
 cmd/rectest/          # Standalone mic recording test (5s WAV capture)
 internal/
   audio/              # Mic capture, recording state machine, device selection
-  transcribe/         # Whisper.cpp integration, TranscribeRequest
-  hotkey/             # Global hotkeys (toggle always-on, Esc only while recording)
+  chunk/              # Audio chunk buffering helpers
   clipboard/          # NSPasteboard save/restore + Cmd+V simulation via CGo
-  config/             # Config loading and file watcher (Phase 5)
-  llm/                # Claude API HTTP client for transcript cleanup
-  ui/                 # Menubar tray icon, device submenu, model management menu
+  config/             # Config loading, file watcher, hotkey parsing, state persistence
+  history/            # Transcription history — SQLite storage and retrieval
+  hotkey/             # Global hotkeys (toggle always-on, Esc only while recording)
+  llm/                # LLM transcript cleanup — Claude API and Ollama backends
+  mode/               # Mode definitions and manager (name, language, translate, prompt)
   models/             # Whisper model download, update checking, status
+  notify/             # macOS notification helpers
+  sound/              # Start/stop audio feedback sounds
+  transcribe/         # Whisper.cpp integration, TranscribeRequest
+  ui/                 # Menubar tray icon, device submenu, model and history menus
+assets/               # App icon (.icns) and logo image
 third_party/
   whisper.cpp/        # whisper.cpp source (git submodule)
-GoWhisper.app/        # macOS app bundle with Info.plist
+GoWhisper.app/        # macOS app bundle (Info.plist + binary + icon)
 phases/               # Development plan (phase-by-phase)
 ```
 
