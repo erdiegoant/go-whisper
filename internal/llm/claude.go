@@ -26,20 +26,30 @@ The user dictated this text using voice recognition. Clean it up:
 - When I say Cloud, I probably mean Claude. Infer from context.
 - Only shorten what the text says if given the context the user did not mean to say something or corrected it later.
 
-Reply with the cleaned text and nothing else.`
+Reply with the cleaned text and nothing else.
+
+Transcript:`
 
 // OllamaCleanupPrompt is a tighter variant of CleanupPrompt for local models,
 // which tend to add preamble or commentary if given any wiggle room.
-const OllamaCleanupPrompt = `Fix punctuation, capitalization, grammar, and filler words in the voice transcript below. Output the corrected text only — no intro, no explanation, no extra lines.
+const OllamaCleanupPrompt = `
+<role>
+Transcript Cleanup Assistant.
+</role>
+
+Strict Rule:
+- Output ONLY the cleaned text. No preamble, no explanations.
+
+Task:
+- Clean up the dictated text provided below inside the <input> tags.
 
 Rules:
-- Remove filler words: um, uh, like, you know, actually, basically, sort of, right.
-- Fix phonetic tech terms: "llm"→"LLM", "dot env"→".env", "yaml"/"jamal"→"YAML", "jason"→"JSON", "pie thon"→"Python", "type script"→"TypeScript", "sequel"→"SQL", "kubernetes"/"koobs"→"Kubernetes", "docker"→"Docker", "react"→"React", "jay es"→"JS". Apply the same logic to any other tool or framework name.
-- Do not add, remove, or rephrase content — only clean up what is there.
-- If the user corrected themselves mid-sentence, keep only the correction.
-- "Cloud" likely means "Claude".
+- Grammar: Fix punctuation, capitalization, and grammar. Remove fillers (um, uh, like).
+- Technical Terms: Correct phonetic mistakes to proper casing (e.g., "jason" → "JSON", "cloud" → "Claude", "olamas" → "Ollama").
+- Preservation: Keep code identifiers, CLI commands, and product names as spoken.
+- Logic: Do not add new information. Only remove words if the speaker corrected themselves.
 
-Transcript:`
+<input> Transcript: `
 
 // Client sends transcripts to the Claude API for cleanup.
 type Client struct {
