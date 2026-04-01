@@ -147,21 +147,34 @@ hotkeys:
 
 ### Using Ollama for local cleanup
 
+[Ollama](https://ollama.com) lets you run LLMs locally on your Mac with no API key, no internet connection after setup, and Metal GPU acceleration on Apple Silicon.
+
+**1. Install Ollama**
+
+Download and install from [ollama.com/download](https://ollama.com/download), or via Homebrew:
+
 ```bash
-# Install Ollama
 brew install ollama
-
-# Pull a model (pick one)
-ollama pull llama3.2:3b    # ~2GB — fast, good quality
-ollama pull phi4-mini      # ~2.5GB — fast, good quality
-ollama pull mistral:7b     # ~4GB — slower, better quality
-
-# Add to config.yaml (comment out the claude block if present)
-ollama:
-  model: "llama3.2:3b"
 ```
 
-All models run with Metal GPU acceleration on Apple Silicon. No internet connection required after the initial model download.
+**2. Pull a model**
+
+```bash
+ollama pull llama3.2:3b    # ~2GB — recommended, fast and good quality
+ollama pull phi4-mini      # ~2.5GB — fast, good quality
+ollama pull mistral:7b     # ~4GB — better quality, slower
+```
+
+Browse all available models at [ollama.com/library](https://ollama.com/library).
+
+**3. Add to `~/.config/gowhisper/config.yaml`**
+
+```yaml
+ollama:
+  model: "llama3.2:3b"   # must match the name you pulled
+```
+
+Ollama must be running in the background when GoWhisper is used (`ollama serve`, or it starts automatically if the Ollama menu bar app is installed). If it isn't running, GoWhisper falls back to the raw transcript silently.
 
 All changes are applied live on save — no restart required.
 
