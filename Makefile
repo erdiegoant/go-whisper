@@ -33,9 +33,10 @@ whisper:
 ## Compile the Go binary
 build:
 	@echo "Building $(BINARY)..."
-	$(CGO_ENV) go build $(BUILD_FLAGS) -o $(APP_BUNDLE) ./cmd/$(BINARY)/
-	@mkdir -p GoWhisper.app/Contents/Resources
+	@mkdir -p GoWhisper.app/Contents/MacOS GoWhisper.app/Contents/Resources
+	@cp Info.plist GoWhisper.app/Contents/Info.plist
 	@cp assets/AppIcon.icns GoWhisper.app/Contents/Resources/AppIcon.icns
+	$(CGO_ENV) go build $(BUILD_FLAGS) -o $(APP_BUNDLE) ./cmd/$(BINARY)/
 	@echo "Binary: $(APP_BUNDLE)"
 
 ## Build and run the compiled binary
