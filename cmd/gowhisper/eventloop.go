@@ -65,7 +65,7 @@ func runEventLoop(
 			}
 			switch action {
 			case ghotkey.ActionToggle:
-				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, hist, cfg, cleanupEnabled, updateModeMenu)
+				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, cleanupEnabled, updateModeMenu)
 
 			case ghotkey.ActionCancel:
 				capturer.Cancel()
@@ -110,6 +110,7 @@ func handleToggle(
 	tray *ui.Tray,
 	modeManager *mode.Manager,
 	llmClient llm.Processor,
+	defaultPrompt string,
 	hist *history.Log,
 	cfg *config.Manager,
 	cleanupEnabled bool,
