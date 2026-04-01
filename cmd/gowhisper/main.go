@@ -177,7 +177,7 @@ func main() {
 		modelMenu = tray.AddModelMenu(
 			models.LocalStatuses(cfg.ModelsDir()),
 			cfg.ModelSize(),
-			func(size string) { go handleModelSelect(size, cfg, modelMenu) },
+			func(size string) { go handleModelSelect(size, cfg, modelMenu, &tr) },
 		)
 		go func() {
 			statuses := models.AllStatuses(cfg.ModelsDir())

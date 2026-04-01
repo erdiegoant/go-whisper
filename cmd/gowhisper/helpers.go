@@ -8,6 +8,7 @@ import (
 	"github.com/erdiegoant/gowhisper/internal/config"
 	"github.com/erdiegoant/gowhisper/internal/models"
 	"github.com/erdiegoant/gowhisper/internal/notify"
+	"github.com/erdiegoant/gowhisper/internal/transcribe"
 	"github.com/erdiegoant/gowhisper/internal/ui"
 )
 
@@ -31,7 +32,7 @@ func saveDevice(dir, name string) {
 // handleModelSelect is called when the user clicks a model in the Models menu.
 // If the model is installed it switches to it; otherwise it downloads it first.
 // Runs in its own goroutine.
-func handleModelSelect(size string, cfg *config.Manager, menu *ui.ModelMenu) {
+func handleModelSelect(size string, cfg *config.Manager, menu *ui.ModelMenu, tr **transcribe.Transcriber) {
 	statuses := models.LocalStatuses(cfg.ModelsDir())
 
 	for _, s := range statuses {
@@ -59,6 +60,19 @@ func handleModelSelect(size string, cfg *config.Manager, menu *ui.ModelMenu) {
 	}
 	if err := cfg.SetModel(size); err != nil {
 		log.Printf("models: SetModel %s after download: %v", size, err)
+	}
+	// If tr is still nil the model name didn't change in config, so OnChange
+	// won't fire. Load the model directly so recording works immediately.
+	if *tr == nil {
+		loaded, err := transcribe.New(cfg.ModelPath())
+		if err != nil {
+			log.Printf("models: load after download failed: %v", err)
+			notify.Show("GoWhisper", "Download complete but model failed to load: "+err.Error())
+			menu.Update(models.LocalStatuses(cfg.ModelsDir()), cfg.ModelSize())
+			return
+		}
+		*tr = loaded
+		log.Printf("models: loaded %s after first download", size)
 	}
 	menu.Update(models.LocalStatuses(cfg.ModelsDir()), size)
 	notify.Show("GoWhisper", "Model "+size+" downloaded and ready")
