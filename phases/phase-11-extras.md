@@ -16,17 +16,29 @@ Nice-to-haves once everything is solid. Each feature ships independently.
 
 ## Transcribe from File
 
-- [ ] Register app as drag destination on the menubar icon
-- [ ] Accept **WAV and AIFF** natively (pure Go decoders available)
-- [ ] Optionally support MP3/M4A if `ffmpeg` is present at runtime — detect with `which ffmpeg`, do not make it a hard dependency
-- [ ] Convert accepted formats to 16kHz mono float32 before passing to Whisper
-- [ ] Decide output behaviour (see note below)
+**Output:** copy result to clipboard, same as the live recording flow. No new mental model. If the transcription needs to be retrieved later it is already saved to the history log.
 
-> **Open question — output behaviour:** two options:
-> - **Clipboard** — consistent with the live recording flow; works well for short clips
-> - **Text file** — saved alongside the source audio; better for long recordings like meetings
->
-> A middle ground: copy to clipboard for short files (under ~60s), write a `.txt` next to the source for longer ones.
+### Input
+- [ ] Register app as drag destination on the menubar icon
+- [ ] Accept **WAV and AIFF** natively (pure Go decoders available — no extra deps)
+- [ ] Optionally support MP3/M4A if `ffmpeg` is present at runtime — detect with `exec.LookPath("ffmpeg")`, do not make it a hard dependency; if absent, show a tray notification explaining the limitation
+- [ ] Convert accepted formats to 16kHz mono float32 PCM before handing to Whisper (same format live recording already produces)
+- [ ] Reject unsupported formats with a tray notification
+
+### Processing
+- [ ] Reuse the existing `transcribe.Transcriber` — no new transcription path needed
+- [ ] Apply the active mode (language, translate, prompt) exactly as live recording does
+- [ ] Run LLM cleanup if enabled, same as live recording
+- [ ] Write entry to history log (`history.Log`) so the result is always retrievable
+
+### Output
+- [ ] Copy final text to clipboard via existing `clipboard` package
+- [ ] Show a tray notification: `"Transcribed: <first 60 chars>…"`
+- [ ] Tray icon shows `⏳ <mode>` during processing, returns to idle when done
+
+### Tray state during file transcription
+- Reuse the same idle → processing → idle state machine already used for live recording
+- Concurrent file transcription + live recording should be blocked — if a recording is in progress, drop the drag with a notification
 
 ---
 
