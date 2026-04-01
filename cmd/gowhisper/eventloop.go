@@ -21,7 +21,7 @@ import (
 // runEventLoop handles hotkey actions and drives the recording state machine.
 func runEventLoop(
 	capturer *audio.Capturer,
-	tr *transcribe.Transcriber,
+	tr **transcribe.Transcriber,
 	hkManager *ghotkey.Manager,
 	tray *ui.Tray,
 	modeManager *mode.Manager,
@@ -106,7 +106,7 @@ func runEventLoop(
 // handleToggle manages the IDLE→RECORDING→PROCESSING→IDLE transition.
 func handleToggle(
 	capturer *audio.Capturer,
-	tr *transcribe.Transcriber,
+	tr **transcribe.Transcriber,
 	hkManager *ghotkey.Manager,
 	tray *ui.Tray,
 	modeManager *mode.Manager,
@@ -120,6 +120,10 @@ func handleToggle(
 ) {
 	switch capturer.CurrentState() {
 	case audio.StateIdle:
+		if *tr == nil {
+			notify.Show("GoWhisper", "No model installed — open the Models menu to download one")
+			return
+		}
 		if cfg.SoundEnabled() {
 			sound.Play(sound.Start)
 		}
@@ -181,7 +185,7 @@ func handleToggle(
 
 			var transcripts []string
 			for i, c := range chunks {
-				res, err := tr.Transcribe(transcribe.TranscribeRequest{
+				res, err := (*tr).Transcribe(transcribe.TranscribeRequest{
 					Samples:   c,
 					Language:  m.Language,
 					Translate: m.Translate,

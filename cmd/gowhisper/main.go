@@ -68,19 +68,24 @@ func main() {
 	logCloser := setupLogging(cfg.Dir(), cfg.LogLevel())
 	defer logCloser.Close()
 
+	var tr *transcribe.Transcriber
 	modelPath := cfg.ModelPath()
 	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "GoWhisper: model not found at %s\nRun: make download-model\n", modelPath)
-		os.Exit(1)
+		log.Println("model: not found — use the Models menu to download one")
+	} else {
+		log.Printf("loading model: %s", modelPath)
+		loaded, err := transcribe.New(modelPath)
+		if err != nil {
+			log.Fatalf("failed to load model: %v", err)
+		}
+		tr = loaded
+		log.Println("model loaded")
 	}
-
-	log.Printf("loading model: %s", modelPath)
-	tr, err := transcribe.New(modelPath)
-	if err != nil {
-		log.Fatalf("failed to load model: %v", err)
-	}
-	defer tr.Close()
-	log.Println("model loaded")
+	defer func() {
+		if tr != nil {
+			tr.Close()
+		}
+	}()
 
 	hist, err := history.Open(cfg.Dir())
 	if err != nil {
@@ -242,7 +247,15 @@ func main() {
 				if evt.ModelChanged {
 					go func() {
 						log.Printf("config: loading new model: %s", evt.Model)
-						if err := tr.Swap(evt.Model); err != nil {
+						if tr == nil {
+							loaded, err := transcribe.New(evt.Model)
+							if err != nil {
+								log.Printf("config: model load failed: %v", err)
+								return
+							}
+							tr = loaded
+							log.Printf("config: model loaded: %s", evt.Model)
+						} else if err := tr.Swap(evt.Model); err != nil {
 							log.Printf("config: model swap failed: %v", err)
 						} else {
 							log.Printf("config: model swapped to %s", evt.Model)
@@ -254,7 +267,10 @@ func main() {
 				}
 			})
 
-			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu, refreshHistory)
+			if tr == nil {
+					notify.Show("GoWhisper", "No model installed — open the Models menu to download one")
+				}
+				runEventLoop(capturer, &tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu, refreshHistory)
 		}()
 	})
 }
