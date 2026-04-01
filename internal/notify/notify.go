@@ -7,25 +7,27 @@ package notify
 // #include <stdlib.h>
 //
 // void show_notification(const char *title, const char *body) {
-//     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-//
 //     NSString *nsTitle = [NSString stringWithUTF8String:title];
 //     NSString *nsBody  = [NSString stringWithUTF8String:body];
 //
-//     [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
-//                           completionHandler:^(BOOL granted, NSError *error) {
-//         if (!granted) return;
+//     dispatch_async(dispatch_get_main_queue(), ^{
+//         UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
 //
-//         UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-//         content.title = nsTitle;
-//         content.body  = nsBody;
+//         [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
+//                               completionHandler:^(BOOL granted, NSError *error) {
+//             if (!granted) return;
 //
-//         NSString *identifier = [[NSUUID UUID] UUIDString];
-//         UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier
-//                                                                               content:content
-//                                                                               trigger:nil];
-//         [center addNotificationRequest:request withCompletionHandler:nil];
-//     }];
+//             UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+//             content.title = nsTitle;
+//             content.body  = nsBody;
+//
+//             NSString *identifier = [[NSUUID UUID] UUIDString];
+//             UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier
+//                                                                                   content:content
+//                                                                                   trigger:nil];
+//             [center addNotificationRequest:request withCompletionHandler:nil];
+//         }];
+//     });
 // }
 import "C"
 
