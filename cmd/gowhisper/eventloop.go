@@ -33,6 +33,7 @@ func runEventLoop(
 	cleanupCh <-chan bool,
 	cleanupEnabled bool,
 	updateModeMenu func(string),
+	refreshHistory func(),
 ) {
 	tray.SetIdle(modeManager.Current().Name)
 	log.Println("ready — ⌥Space to record, Esc to cancel, ⌥⇧K to change mode")
@@ -65,7 +66,7 @@ func runEventLoop(
 			}
 			switch action {
 			case ghotkey.ActionToggle:
-				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, cleanupEnabled, updateModeMenu)
+				handleToggle(capturer, tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, cleanupEnabled, updateModeMenu, refreshHistory)
 
 			case ghotkey.ActionCancel:
 				capturer.Cancel()
@@ -115,6 +116,7 @@ func handleToggle(
 	cfg *config.Manager,
 	cleanupEnabled bool,
 	updateModeMenu func(string),
+	refreshHistory func(),
 ) {
 	switch capturer.CurrentState() {
 	case audio.StateIdle:
@@ -235,6 +237,7 @@ func handleToggle(
 					}); err != nil {
 						log.Printf("history: write failed: %v", err)
 					}
+					refreshHistory()
 				}()
 			}
 

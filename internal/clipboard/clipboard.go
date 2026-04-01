@@ -41,6 +41,15 @@ import (
 	"unsafe"
 )
 
+// Write puts text on the clipboard without simulating a paste or disturbing
+// whatever was there before. Use this when the caller just wants text available
+// to paste manually (e.g. copying from history).
+func Write(text string) {
+	cText := C.CString(text)
+	C.set_clipboard(cText)
+	C.free(unsafe.Pointer(cText))
+}
+
 // Paste writes text to the clipboard, simulates Cmd+V into the active window,
 // then restores the previous clipboard contents. Safe to call from any goroutine.
 func Paste(text string) error {

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os/exec"
 	"sync"
+	"time"
 
 	"fyne.io/systray"
 
@@ -286,4 +287,91 @@ func modelItemTitle(s models.ModelStatus, currentModel string) string {
 	default:
 		return "  " + s.Size
 	}
+}
+
+// HistoryEntry is the data shown in one history menu slot.
+type HistoryEntry struct {
+	Text      string
+	Mode      string
+	Timestamp time.Time
+}
+
+// HistorySlots is the maximum number of entries shown in the History submenu.
+const HistorySlots = 10
+
+// HistoryMenu manages the "History" submenu in the tray.
+type HistoryMenu struct {
+	mu      sync.Mutex
+	parent  *systray.MenuItem
+	empty   *systray.MenuItem
+	slots   [HistorySlots]*systray.MenuItem
+	texts   [HistorySlots]string // full text for each slot, looked up on click
+	onClick func(text string)
+}
+
+// AddHistoryMenu adds a "History" submenu with pre-allocated slots.
+// onClick is called with the full entry text when the user clicks a slot.
+// Must be called after Run's onReady fires.
+func (t *Tray) AddHistoryMenu(onClick func(text string)) *HistoryMenu {
+	parent := systray.AddMenuItem("History", "Recent transcriptions")
+	hm := &HistoryMenu{parent: parent, onClick: onClick}
+
+	hm.empty = parent.AddSubMenuItem("No history yet", "")
+	hm.empty.Disable()
+
+	for i := 0; i < HistorySlots; i++ {
+		item := parent.AddSubMenuItem("", "")
+		item.Hide()
+		hm.slots[i] = item
+		go func(item *systray.MenuItem, idx int) {
+			for range item.ClickedCh {
+				hm.mu.Lock()
+				text := hm.texts[idx]
+				fn := hm.onClick
+				hm.mu.Unlock()
+				if fn != nil && text != "" {
+					fn(text)
+				}
+			}
+		}(item, i)
+	}
+
+	return hm
+}
+
+// Update refreshes the history submenu with new entries (newest first).
+// Safe to call from any goroutine.
+func (hm *HistoryMenu) Update(entries []HistoryEntry) {
+	hm.mu.Lock()
+	defer hm.mu.Unlock()
+
+	if len(entries) == 0 {
+		hm.empty.Show()
+		for _, s := range hm.slots {
+			s.Hide()
+		}
+		return
+	}
+
+	hm.empty.Hide()
+	for i, slot := range hm.slots {
+		if i < len(entries) {
+			hm.texts[i] = entries[i].Text
+			slot.SetTitle(historyItemTitle(entries[i]))
+			slot.Show()
+		} else {
+			hm.texts[i] = ""
+			slot.Hide()
+		}
+	}
+}
+
+// historyItemTitle formats an entry for display in the menu.
+func historyItemTitle(e HistoryEntry) string {
+	text := e.Text
+	if len([]rune(text)) > 50 {
+		runes := []rune(text)
+		text = string(runes[:50]) + "…"
+	}
+	return text
 }

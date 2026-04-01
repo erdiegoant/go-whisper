@@ -12,6 +12,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/erdiegoant/gowhisper/internal/audio"
+	"github.com/erdiegoant/gowhisper/internal/clipboard"
 	"github.com/erdiegoant/gowhisper/internal/config"
 	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
 	"github.com/erdiegoant/gowhisper/internal/history"
@@ -182,6 +183,27 @@ func main() {
 			}
 		}()
 
+		// History menu — populate immediately from DB, refresh after each transcription.
+		historyMenu := tray.AddHistoryMenu(func(text string) {
+			clipboard.Write(text)
+		})
+		refreshHistory := func() {
+			if hist == nil {
+				return
+			}
+			entries, err := hist.Recent(ui.HistorySlots)
+			if err != nil {
+				log.Printf("history: read failed: %v", err)
+				return
+			}
+			items := make([]ui.HistoryEntry, len(entries))
+			for i, e := range entries {
+				items[i] = ui.HistoryEntry{Text: e.ProcessedText, Mode: e.ModeName, Timestamp: e.Timestamp}
+			}
+			historyMenu.Update(items)
+		}
+		refreshHistory()
+
 		go func() {
 			combos := cfg.Combos()
 			hkManager, err := ghotkey.New(
@@ -229,7 +251,7 @@ func main() {
 				}
 			})
 
-			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu)
+			runEventLoop(capturer, tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu, refreshHistory)
 		}()
 	})
 }
