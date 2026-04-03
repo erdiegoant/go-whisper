@@ -117,6 +117,8 @@ The app lives in your menubar. You'll see `⚫ Standard` when idle.
 3. Press **⌥Space** again — icon changes to `⏳ Standard`, transcription runs
 4. Text is pasted into whatever window was active — icon returns to `⚫ Standard`
 
+> **Memory:** after 60 seconds of idle the model is unloaded from RAM. The next press briefly shows `⌛ Standard` while it reloads (~1–3 s depending on model size), then recording starts normally. Change the timeout with `model_unload_timeout_seconds` in config, or set it to `0` to keep the model loaded permanently.
+
 Press **Esc** at any point while recording to cancel (nothing is pasted).
 
 ## Configuration
@@ -128,6 +130,7 @@ model: small
 language: auto
 models_dir: "~/.config/gowhisper/models"
 max_recording_seconds: 120
+model_unload_timeout_seconds: 60  # unload model from RAM after 60s idle; 0 = never unload
 
 # LLM cleanup — pick one backend or omit both to disable cleanup entirely.
 # If both are set, Ollama takes priority.

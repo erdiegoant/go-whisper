@@ -74,6 +74,12 @@ func (t *Tray) SetProcessing(modeName string) {
 	systray.SetTooltip("GoWhisper — transcribing")
 }
 
+// SetLoading updates the tray title while the model is being loaded from disk.
+func (t *Tray) SetLoading(modeName string) {
+	systray.SetTitle("⌛ " + modeName)
+	systray.SetTooltip("GoWhisper — loading model…")
+}
+
 // AddOpenConfigItem adds an "Open Config" menu item that opens path in the
 // default application for .yaml files.
 // Must be called after Run's onReady fires.

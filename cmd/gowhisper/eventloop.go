@@ -8,8 +8,8 @@ import (
 	"github.com/erdiegoant/gowhisper/internal/chunk"
 	"github.com/erdiegoant/gowhisper/internal/clipboard"
 	"github.com/erdiegoant/gowhisper/internal/config"
-	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
 	"github.com/erdiegoant/gowhisper/internal/history"
+	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
 	"github.com/erdiegoant/gowhisper/internal/llm"
 	"github.com/erdiegoant/gowhisper/internal/mode"
 	"github.com/erdiegoant/gowhisper/internal/notify"
@@ -123,6 +123,19 @@ func handleToggle(
 		if *tr == nil {
 			notify.Show("GoWhisper", "No model installed — open the Models menu to download one")
 			return
+		}
+		// KeepAlive atomically checks if the model is loaded and resets the idle
+		// timer, preventing it from firing mid-session. If it returns false the
+		// model was already unloaded — reload it now with visual feedback.
+		if !(*tr).KeepAlive() {
+			tray.SetLoading(modeManager.Current().Name)
+			log.Println("model: reloading after idle unload…")
+			if err := (*tr).EnsureLoaded(); err != nil {
+				log.Printf("model: reload failed: %v", err)
+				notify.Show("GoWhisper", "Failed to reload model: "+err.Error())
+				tray.SetIdle(modeManager.Current().Name)
+				return
+			}
 		}
 		if cfg.SoundEnabled() {
 			sound.Play(sound.Start)

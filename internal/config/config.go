@@ -24,18 +24,19 @@ type Combo struct {
 
 // raw is the YAML structure — field names match the config file keys.
 type raw struct {
-	Model                string     `yaml:"model"`
-	Language             string     `yaml:"language"`
-	ModelsDir            string     `yaml:"models_dir"`
-	MaxRecordingSeconds  int        `yaml:"max_recording_seconds"`
-	LogLevel             string     `yaml:"log_level"`
-	SoundEnabled         *bool      `yaml:"sound_enabled"`
-	NotificationsEnabled *bool      `yaml:"notifications_enabled"`
-	Claude               claudeRaw  `yaml:"claude"`
-	Ollama               ollamaRaw  `yaml:"ollama"`
-	Hotkeys              hotkeysRaw `yaml:"hotkeys"`
-	Modes                []modeRaw  `yaml:"modes"`
-	Prompt               string     `yaml:"prompt"`
+	Model                     string     `yaml:"model"`
+	Language                  string     `yaml:"language"`
+	ModelsDir                 string     `yaml:"models_dir"`
+	MaxRecordingSeconds       int        `yaml:"max_recording_seconds"`
+	ModelUnloadTimeoutSeconds int        `yaml:"model_unload_timeout_seconds"`
+	LogLevel                  string     `yaml:"log_level"`
+	SoundEnabled              *bool      `yaml:"sound_enabled"`
+	NotificationsEnabled      *bool      `yaml:"notifications_enabled"`
+	Claude                    claudeRaw  `yaml:"claude"`
+	Ollama                    ollamaRaw  `yaml:"ollama"`
+	Hotkeys                   hotkeysRaw `yaml:"hotkeys"`
+	Modes                     []modeRaw  `yaml:"modes"`
+	Prompt                    string     `yaml:"prompt"`
 }
 
 type claudeRaw struct {
@@ -86,12 +87,14 @@ type OllamaConfig struct {
 
 // ChangeEvent is passed to OnChange callbacks describing what changed on reload.
 type ChangeEvent struct {
-	Combos        Combos
-	CombosChanged bool
-	Model         string
-	ModelChanged  bool
-	Modes         []mode.Mode
-	ModesChanged  bool
+	Combos               Combos
+	CombosChanged        bool
+	Model                string
+	ModelChanged         bool
+	Modes                []mode.Mode
+	ModesChanged         bool
+	UnloadTimeout        int
+	UnloadTimeoutChanged bool
 }
 
 // Manager owns the parsed config and the fsnotify watcher.
@@ -107,11 +110,12 @@ type Manager struct {
 }
 
 var defaults = raw{
-	Model:               "small",
-	Language:            "auto",
-	ModelsDir:           "~/.config/gowhisper/models",
-	MaxRecordingSeconds: 120,
-	LogLevel:            "info",
+	Model:                     "small",
+	Language:                  "auto",
+	ModelsDir:                 "~/.config/gowhisper/models",
+	MaxRecordingSeconds:       120,
+	ModelUnloadTimeoutSeconds: 60,
+	LogLevel:                  "info",
 	Claude: claudeRaw{
 		Model:          "claude-haiku-4-5-20251001",
 		TimeoutSeconds: 15,
@@ -283,6 +287,14 @@ func (m *Manager) MaxRecordingSeconds() int {
 	return m.cfg.MaxRecordingSeconds
 }
 
+// ModelUnloadTimeoutSeconds returns the idle duration in seconds before the
+// model is unloaded from memory. Zero means never unload.
+func (m *Manager) ModelUnloadTimeoutSeconds() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg.ModelUnloadTimeoutSeconds
+}
+
 // SoundEnabled returns true unless sound_enabled is explicitly false in config.
 func (m *Manager) SoundEnabled() bool {
 	m.mu.RLock()
@@ -348,6 +360,7 @@ func (m *Manager) reloadAndNotify(path string) {
 	oldCombos := m.combos
 	oldModel := resolveModelPath(m.cfg)
 	oldModes := m.cfg.Modes
+	oldUnloadTimeout := m.cfg.ModelUnloadTimeoutSeconds
 
 	if err := m.reload(path); err != nil {
 		log.Printf("config: reload error: %v — keeping previous config", err)
@@ -356,18 +369,20 @@ func (m *Manager) reloadAndNotify(path string) {
 	}
 
 	evt := ChangeEvent{
-		Combos:        m.combos,
-		CombosChanged: !combosEqual(oldCombos, m.combos),
-		Model:         resolveModelPath(m.cfg),
-		ModelChanged:  resolveModelPath(m.cfg) != oldModel,
-		Modes:         parseModes(m.cfg.Modes),
-		ModesChanged:  !modesEqual(oldModes, m.cfg.Modes),
+		Combos:               m.combos,
+		CombosChanged:        !combosEqual(oldCombos, m.combos),
+		Model:                resolveModelPath(m.cfg),
+		ModelChanged:         resolveModelPath(m.cfg) != oldModel,
+		Modes:                parseModes(m.cfg.Modes),
+		ModesChanged:         !modesEqual(oldModes, m.cfg.Modes),
+		UnloadTimeout:        m.cfg.ModelUnloadTimeoutSeconds,
+		UnloadTimeoutChanged: m.cfg.ModelUnloadTimeoutSeconds != oldUnloadTimeout,
 	}
 	callbacks := make([]func(ChangeEvent), len(m.onChange))
 	copy(callbacks, m.onChange)
 	m.mu.Unlock()
 
-	if evt.CombosChanged || evt.ModelChanged || evt.ModesChanged {
+	if evt.CombosChanged || evt.ModelChanged || evt.ModesChanged || evt.UnloadTimeoutChanged {
 		for _, fn := range callbacks {
 			fn(evt)
 		}
@@ -581,6 +596,9 @@ model: small              # tiny | small | medium
 language: auto            # auto | es | en
 models_dir: "~/.config/gowhisper/models"
 max_recording_seconds: 120
+# Unload the Whisper model from RAM after this many seconds of idle.
+# Set to 0 to keep the model loaded permanently.
+model_unload_timeout_seconds: 60
 log_level: info
 sound_enabled: true
 notifications_enabled: true

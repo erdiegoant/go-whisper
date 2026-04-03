@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/erdiegoant/gowhisper/internal/config"
 	"github.com/erdiegoant/gowhisper/internal/models"
@@ -64,7 +65,8 @@ func handleModelSelect(size string, cfg *config.Manager, menu *ui.ModelMenu, tr 
 	// If tr is still nil the model name didn't change in config, so OnChange
 	// won't fire. Load the model directly so recording works immediately.
 	if *tr == nil {
-		loaded, err := transcribe.New(cfg.ModelPath())
+		timeout := time.Duration(cfg.ModelUnloadTimeoutSeconds()) * time.Second
+		loaded, err := transcribe.New(cfg.ModelPath(), timeout)
 		if err != nil {
 			log.Printf("models: load after download failed: %v", err)
 			notify.Show("GoWhisper", "Download complete but model failed to load: "+err.Error())

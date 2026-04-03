@@ -8,14 +8,15 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/erdiegoant/gowhisper/internal/audio"
 	"github.com/erdiegoant/gowhisper/internal/clipboard"
 	"github.com/erdiegoant/gowhisper/internal/config"
-	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
 	"github.com/erdiegoant/gowhisper/internal/history"
+	ghotkey "github.com/erdiegoant/gowhisper/internal/hotkey"
 	"github.com/erdiegoant/gowhisper/internal/llm"
 	"github.com/erdiegoant/gowhisper/internal/mode"
 	"github.com/erdiegoant/gowhisper/internal/models"
@@ -74,7 +75,8 @@ func main() {
 		log.Println("model: not found — use the Models menu to download one")
 	} else {
 		log.Printf("loading model: %s", modelPath)
-		loaded, err := transcribe.New(modelPath)
+		timeout := time.Duration(cfg.ModelUnloadTimeoutSeconds()) * time.Second
+		loaded, err := transcribe.New(modelPath, timeout)
 		if err != nil {
 			log.Fatalf("failed to load model: %v", err)
 		}
@@ -248,7 +250,8 @@ func main() {
 					go func() {
 						log.Printf("config: loading new model: %s", evt.Model)
 						if tr == nil {
-							loaded, err := transcribe.New(evt.Model)
+							timeout := time.Duration(cfg.ModelUnloadTimeoutSeconds()) * time.Second
+							loaded, err := transcribe.New(evt.Model, timeout)
 							if err != nil {
 								log.Printf("config: model load failed: %v", err)
 								return
@@ -265,12 +268,20 @@ func main() {
 				if evt.ModesChanged {
 					go func() { setModeCh <- "" }()
 				}
+				if evt.UnloadTimeoutChanged {
+					go func() {
+						if tr != nil {
+							tr.SetTimeout(time.Duration(evt.UnloadTimeout) * time.Second)
+							log.Printf("config: model unload timeout updated to %ds", evt.UnloadTimeout)
+						}
+					}()
+				}
 			})
 
 			if tr == nil {
-					notify.Show("GoWhisper", "No model installed — open the Models menu to download one")
-				}
-				runEventLoop(capturer, &tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu, refreshHistory)
+				notify.Show("GoWhisper", "No model installed — open the Models menu to download one")
+			}
+			runEventLoop(capturer, &tr, hkManager, tray, modeManager, llmClient, defaultPrompt, hist, cfg, setModeCh, cleanupCh, cleanupEnabled, updateModeMenu, refreshHistory)
 		}()
 	})
 }
