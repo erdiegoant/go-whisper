@@ -1,41 +1,87 @@
 # GoWhisper — Development Plan
 
-A Superwhisper-inspired voice dictation and translation app for macOS, built in Go using whisper.cpp, with optional LLM cleanup via Claude API or Ollama.
-
-## Progress Tracker
-
-| Phase | Title | Status |
-|---|---|---|
-| 1 | Foundation & Audio Capture | ✅ Done |
-| 2 | Whisper.cpp Integration | ✅ Done |
-| 3 | Hotkey & Clipboard | ✅ Done |
-| 4 | Translation Flow | ✅ Done |
-| 5 | Config & Shortcut Customization | ✅ Done |
-| 6 | LLM Transcript Cleanup (Claude API) | ✅ Done |
-| 7 | Custom Modes | ✅ Done |
-| 8 | Polish & Reliability | ✅ Done |
-| 9 | Native macOS UI (SwiftUI) | ⏸ Postponed |
-| 10 | Local LLM Backend (Ollama) | ✅ Done |
-| 11 | Optional Extras | 🔄 In progress — history ✅, transcribe from file ⏳ |
+A Superwhisper-inspired voice dictation and translation app for macOS, built in Go using
+whisper.cpp, with optional LLM cleanup via Claude API or Ollama.
 
 ---
 
-## Milestones
+## Product Tiers
 
-- **Phases 1–4** — Working MVP. Dictate and translate with a hotkey, pastes into any window. ✅
-- **Phase 5** — Fully configurable hotkeys and settings. ✅
-- **Phases 6–7** — Superwhisper paid-tier features (Modes + LLM cleanup), running locally and free. ✅
-- **Phase 8** — Production-quality, daily-driveable. ✅
-- **Phase 9** — Native SwiftUI UI. Postponed indefinitely — DarwinKit abandoned, SwiftUI rewrite deferred.
-- **Phase 10** — Local LLM via Ollama. ✅
-- **Phase 11** — Post-MVP extras. History log shipped. Transcribe from file planned.
+GoWhisper ships as two editions compiled from the **same repository** using Go build tags.
+
+### Free (open source)
+- Distributed via **GitHub Releases** as an unsigned binary
+- Developer-friendly setup (clone, cmake, make whisper, download model)
+- Core dictation, translation, custom modes via `config.yaml`, transcription history
+- This is the top-of-funnel — it stays open source indefinitely
+
+### Pro — $39 one-time
+- Distributed as a **notarized `.dmg`** via Gumroad / Lemon Squeezy
+- No Gatekeeper warning, first-launch onboarding, model download built-in
+- Adds everything in the Pro feature set (see phases below)
+- Compiled with `-tags pro`; Pro packages are no-ops in free builds via stub files
+- No license key enforcement at v1 — the notarized DMG experience is the value
+
+**No subscriptions. No cloud requirement. One price, own it forever.**
+
+---
+
+## Build Tag Strategy
+
+Pro features live in files guarded by `//go:build pro`. Every Pro package has a matching
+stub file guarded by `//go:build !pro` so the codebase compiles cleanly either way.
+
+```
+internal/
+  mcp/
+    server.go       //go:build pro   ← real MCP server
+    stub.go         //go:build !pro  ← no-op Start()
+  modes/
+    builtin_pro.go  //go:build pro   ← full curated mode library
+    builtin_free.go //go:build !pro  ← Standard + Translate only
+  ui/
+    settings_pro.go //go:build pro   ← settings window
+    settings_free.go //go:build !pro ← tray only (current behaviour)
+```
+
+Makefile targets:
+```makefile
+build-free:    go build ./cmd/gowhisper
+build-pro:     go build -tags pro ./cmd/gowhisper
+release-pro:   go build -tags pro -ldflags="-s -w" ./cmd/gowhisper
+               # → package into .app bundle → notarize → DMG
+```
+
+---
+
+## Progress Tracker
+
+| Phase | Title | Edition | Status |
+| ----- | ----- | ------- | ------ |
+| 1  | Foundation & Audio Capture              | Free | ✅ Done |
+| 2  | Whisper.cpp Integration                 | Free | ✅ Done |
+| 3  | Hotkey & Clipboard                      | Free | ✅ Done |
+| 4  | Translation Flow                        | Free | ✅ Done |
+| 5  | Config & Shortcut Customization         | Free | ✅ Done |
+| 6  | LLM Transcript Cleanup (Claude API)     | Free | ✅ Done |
+| 7  | Custom Modes                            | Free | ✅ Done |
+| 8  | Polish & Reliability                    | Free | ✅ Done |
+| 9  | Native macOS UI (SwiftUI)               | Pro  | ⏸ Postponed |
+| 10 | Local LLM Backend (Ollama)              | Free | ✅ Done |
+| 11 | Optional Extras                         | Free | 🔄 In progress — history ✅, transcribe from file ⏳ |
+| 12 | MCP Server                              | Pro  | 🔜 Next |
+| 13 | Pro Mode Library                        | Pro  | 🔜 Planned |
+| 14 | Settings UI Window                      | Pro  | 🔜 Planned |
+| 15 | Notarization & DMG Packaging            | Pro  | 🔜 Planned |
+| 16 | First-launch Onboarding                 | Pro  | 🔜 Planned |
+| 17 | Distribution & Store Setup              | Pro  | 🔜 Planned |
 
 ---
 
 ## Stack
 
 | Layer | Technology |
-|---|---|
+| ----- | ---------- |
 | Language | Go |
 | STT Engine | whisper.cpp (CGo bindings, Metal GPU accelerated) |
 | Audio Capture | miniaudio via `github.com/gen2brain/malgo` |
@@ -46,25 +92,5 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 | Config | `config.yaml` with `fsnotify` file watcher |
 | History | SQLite via `modernc.org/sqlite` |
 | Notifications | `NSUserNotificationCenter` via CGo |
-
----
-
-## v1.0.0 — Shipped
-
-First public release. Apple Silicon only (M1+), macOS 13+, unsigned.
-
-Key features at release:
-- Toggle recording with ⌥Space, cancel with Esc, cycle modes with ⌥⇧K
-- Whisper.cpp transcription with Metal acceleration
-- ES → EN translation natively via Whisper
-- Optional LLM cleanup (Claude API or Ollama)
-- Custom modes with per-mode prompts and a global prompt override
-- Model management from the tray (download, switch, auto-update check)
-- Transcription history in tray (SQLite-backed)
-- Hot-reloadable config
-- Graceful first-launch: prompts to download a model if none is installed
-
-## What's Next
-
-- **Transcribe from file** — drag an audio file onto the tray to transcribe it (see `phases/phase-11-extras.md`)
-- **Phase 9 (Native UI)** — postponed, revisit when time allows
+| MCP Server (Pro) | `github.com/modelcontextprotocol/go-sdk` over stdio |
+| Settings UI (Pro) | AppKit via DarwinKit (light usage) |
