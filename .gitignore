@@ -14,3 +14,5 @@ third_party/whisper.cpp/build/
 
 # macOS
 .DS_Store
+
+/release-notes.md
