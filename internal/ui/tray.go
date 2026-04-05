@@ -345,6 +345,17 @@ func (t *Tray) AddHistoryMenu(onClick func(text string)) *HistoryMenu {
 	return hm
 }
 
+// AddClearItem appends a "Clear History" item to the history submenu.
+// onClick is called when the user clicks it. Must be called after AddHistoryMenu.
+func (hm *HistoryMenu) AddClearItem(onClick func()) {
+	item := hm.parent.AddSubMenuItem("Clear History", "Delete all transcription history")
+	go func() {
+		for range item.ClickedCh {
+			onClick()
+		}
+	}()
+}
+
 // Update refreshes the history submenu with new entries (newest first).
 // Safe to call from any goroutine.
 func (hm *HistoryMenu) Update(entries []HistoryEntry) {

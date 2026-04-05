@@ -129,6 +129,38 @@ func TestRecent_empty(t *testing.T) {
 	}
 }
 
+// --- Clear ---
+
+func TestClear_emptiesDB(t *testing.T) {
+	l := openTemp(t)
+	base := time.Now().UTC().Truncate(time.Second)
+
+	for i := 0; i < 3; i++ {
+		if err := l.Add(Entry{Timestamp: base.Add(time.Duration(i) * time.Second), RawText: "x"}, 0); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+
+	if err := l.Clear(); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+
+	entries, err := l.Recent(10)
+	if err != nil {
+		t.Fatalf("Recent after Clear: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("want 0 entries after Clear, got %d", len(entries))
+	}
+}
+
+func TestClear_emptyDBIsNoop(t *testing.T) {
+	l := openTemp(t)
+	if err := l.Clear(); err != nil {
+		t.Errorf("Clear on empty DB should not error, got: %v", err)
+	}
+}
+
 // --- Add: pruning ---
 
 func TestAdd_prunesAboveMax(t *testing.T) {

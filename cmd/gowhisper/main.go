@@ -214,6 +214,17 @@ func main() {
 		}
 		refreshHistory()
 
+		if hist != nil {
+			historyMenu.AddClearItem(func() {
+				if err := hist.Clear(); err != nil {
+					log.Printf("history: clear failed: %v", err)
+					return
+				}
+				log.Println("history: cleared")
+				refreshHistory()
+			})
+		}
+
 		go func() {
 			combos := cfg.Combos()
 			hkManager, err := ghotkey.New(

@@ -67,6 +67,12 @@ func (l *Log) Add(e Entry, maxEntries int) error {
 	return err
 }
 
+// Clear deletes all history entries.
+func (l *Log) Clear() error {
+	_, err := l.db.Exec(`DELETE FROM transcriptions`)
+	return err
+}
+
 // Recent returns the last n entries, newest first.
 func (l *Log) Recent(n int) ([]Entry, error) {
 	rows, err := l.db.Query(`
