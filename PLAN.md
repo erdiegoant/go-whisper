@@ -68,7 +68,7 @@ release-pro:   go build -tags pro -ldflags="-s -w" ./cmd/gowhisper
 | 8  | Polish & Reliability                    | Free | ✅ Done |
 | 9  | Native macOS UI (SwiftUI)               | Pro  | ⏸ Postponed |
 | 10 | Local LLM Backend (Ollama)              | Free | ✅ Done |
-| 11 | Optional Extras                         | Free | 🔄 In progress — history ✅, transcribe from file ⏳ |
+| 11 | Optional Extras                         | Free | 🔄 In progress — retention ✅, clear ✅, CLI path ✅, help/history CLI ✅, transcribe from file ⏳ |
 | 12 | MCP Server                              | Pro  | 🔜 Next |
 | 13 | Pro Mode Library                        | Pro  | 🔜 Planned |
 | 14 | Settings UI Window                      | Pro  | 🔜 Planned |

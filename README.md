@@ -16,7 +16,9 @@ A Superwhisper-inspired voice dictation and translation app for macOS, built in 
 - **Custom modes** — define your own prompts in `config.yaml`, cycle through them with a hotkey or pick from the tray menu
 - **Model management from the tray** — switch between tiny/small/medium directly from the menu; download models you don't have with live progress; the active model hot-swaps without a restart
 - **Startup update check** — on launch GoWhisper silently checks Hugging Face for newer model files; if an update is found the tray shows `Models ●` and a notification appears
-- **Transcription history** — every transcription is saved to a local SQLite database; browse with `gowhisper history`
+- **Transcription history** — every transcription is saved to a local SQLite database; browse with `gowhisper history [n]`; clear all entries from the tray menu
+- **History retention** — configurable `max_history_entries` (default 500) prunes oldest entries automatically
+- **CLI** — `gowhisper help`, `gowhisper history [n]`, `gowhisper download-model [size]`; add the binary to your PATH via the tray or `make install-cli`
 - **Hot-reloadable config** — change hotkeys or models without restarting
 - **No cloud, no subscription** — everything runs on your machine
 
@@ -257,6 +259,7 @@ make run              # Build and run the compiled binary
 make dev              # Run directly with go run (faster for development)
 make test             # Run all tests
 make install          # Install GoWhisper.app to /Applications
+make install-cli      # Create /usr/local/bin/gowhisper symlink (requires installed app)
 make download-model   # Download ggml-small.bin to ~/.config/gowhisper/models/
 make rectest          # Record 5s to /tmp/rectest.wav — diagnose mic access (DEV="name" to pick device)
 make clean            # Remove build artifacts
@@ -265,7 +268,7 @@ make clean            # Remove build artifacts
 ## Project Structure
 
 ```
-cmd/gowhisper/        # Main entry point and event loop
+cmd/gowhisper/        # CLI dispatcher, tray app, and per-subcommand files
 cmd/rectest/          # Standalone mic recording test (5s WAV capture)
 internal/
   audio/              # Mic capture, recording state machine, device selection
@@ -302,7 +305,7 @@ phases/               # Development plan (phase-by-phase)
 | 8 | Polish & reliability | ✅ Done |
 | 9 | Native macOS UI (SwiftUI) | ⏸ Postponed |
 | 10 | Local LLM backend (Ollama) | ✅ Done |
-| 11 | Optional extras (history ✅, transcribe from file ⏳) | 🔄 In progress |
+| 11 | Optional extras (retention ✅, clear ✅, CLI ✅, transcribe from file ⏳) | 🔄 In progress |
 
 ## License
 

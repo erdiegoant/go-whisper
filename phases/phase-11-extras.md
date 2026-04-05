@@ -1,6 +1,6 @@
 # Phase 11 — Optional Extras (Post-MVP)
 
-**Status:** 🔄 Partial — History log and Auto-update models done; Transcribe from file deferred
+**Status:** 🔄 Partial — Most extras done; transcribe from file deferred
 
 Nice-to-haves once everything is solid. Each feature ships independently.
 
@@ -10,9 +10,10 @@ Nice-to-haves once everything is solid. Each feature ships independently.
 |---|---|---|---|
 | History log | Save all transcriptions with timestamps to a local SQLite file | Medium | ✅ Done |
 | Auto-update models | Download newer GGML models from Hugging Face via tray menu | Low | ✅ Done |
-| History retention | Prune history to a configurable max via `max_history_entries` | Low | ⏳ Pending |
-| Clear history | "Clear History" tray menu item — wipes all SQLite entries | Low | ⏳ Pending |
-| Add CLI to Path | Tray menu item (shown only if binary isn't in $PATH) | Low | ⏳ Pending |
+| History retention | Prune history to a configurable max via `max_history_entries` | Low | ✅ Done |
+| Clear history | "Clear History" tray menu item — wipes all SQLite entries | Low | ✅ Done |
+| Add CLI to Path | Tray menu item (shown only if binary isn't in $PATH) | Low | ✅ Done |
+| CLI help & history | `gowhisper help` and `gowhisper history [n]` subcommands | Low | ✅ Done |
 | Transcribe from file | `gowhisper transcribe <file>` CLI subcommand | Medium | ⏳ Pending |
 
 ---
