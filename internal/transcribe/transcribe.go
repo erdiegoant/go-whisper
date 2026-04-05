@@ -12,9 +12,10 @@ import (
 
 // TranscribeRequest holds all parameters for a single transcription call.
 type TranscribeRequest struct {
-	Samples   []float32
-	Language  string // "auto" | "es" | "en" | etc.
-	Translate bool   // true = translate TO English via Whisper native
+	Samples    []float32
+	Language   string   // "auto" | "es" | "en" | etc.
+	Translate  bool     // true = translate TO English via Whisper native
+	Vocabulary []string // passed to SetInitialPrompt to bias decoder toward these words; empty = no prompt
 }
 
 // Transcriber holds a loaded whisper model and serialises transcription calls.
@@ -77,6 +78,10 @@ func (t *Transcriber) Transcribe(req TranscribeRequest) (string, error) {
 
 	// Disable token timestamps and progress callbacks — reduce CGo overhead.
 	ctx.SetTokenTimestamps(false)
+
+	if len(req.Vocabulary) > 0 {
+		ctx.SetInitialPrompt(strings.Join(req.Vocabulary, ", "))
+	}
 
 	if err := ctx.Process(req.Samples, nil, nil, nil); err != nil {
 		return "", fmt.Errorf("transcribe: process: %w", err)

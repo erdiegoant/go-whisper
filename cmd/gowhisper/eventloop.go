@@ -197,11 +197,16 @@ func handleToggle(
 			}
 
 			var transcripts []string
+			vocab := m.Vocabulary
+			if len(vocab) == 0 {
+				vocab = cfg.Vocabulary()
+			}
 			for i, c := range chunks {
 				res, err := (*tr).Transcribe(transcribe.TranscribeRequest{
-					Samples:   c,
-					Language:  m.Language,
-					Translate: m.Translate,
+					Samples:    c,
+					Language:   m.Language,
+					Translate:  m.Translate,
+					Vocabulary: vocab,
 				})
 				if err != nil {
 					log.Printf("transcription chunk %d/%d: %v (skipped)", i+1, len(chunks), err)

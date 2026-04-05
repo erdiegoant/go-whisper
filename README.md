@@ -152,6 +152,14 @@ hotkeys:
   cancel_recording: "esc"
   change_mode: "option+shift+k"
 
+# Global vocabulary hints — words listed here are more likely to appear in transcripts.
+# Useful for proper names, technical terms, and jargon Whisper might mishear.
+# Limit to ~150 words. Overridden per-mode if a mode defines its own vocabulary.
+# vocabulary:
+#   - Kubernetes
+#   - gRPC
+#   - Prometheus
+
 # Custom modes — omit this block to use the built-in Standard + Translate defaults.
 # modes:
 #   - name: Standard
@@ -171,6 +179,14 @@ hotkeys:
 #     language: auto
 #     translate: false
 #     prompt: "Convert this dictation into a concise bullet point list. Return only the result."
+#
+#   - name: Dev
+#     language: auto
+#     translate: false
+#     vocabulary:          # per-mode vocabulary overrides the global list
+#       - Kubernetes
+#       - Dockerfile
+#       - gRPC
 ```
 
 ### Using Ollama for local cleanup
@@ -205,6 +221,31 @@ ollama:
 Ollama must be running in the background when GoWhisper is used (`ollama serve`, or it starts automatically if the Ollama menu bar app is installed). If it isn't running, GoWhisper falls back to the raw transcript silently.
 
 All changes are applied live on save — no restart required.
+
+### Vocabulary hints
+
+Whisper's decoder can be primed with a list of words you commonly say, making it more likely to transcribe them correctly. This is especially useful for proper nouns, technical terms, product names, and jargon that sound like common words.
+
+Add a global list under `vocabulary:` in `config.yaml`, or set a `vocabulary:` list on a specific mode to override it for that mode only. Modes without a vocabulary list fall back to the global one.
+
+```yaml
+# Global — applies to all modes that don't define their own
+vocabulary:
+  - Kubernetes
+  - gRPC
+  - Prometheus
+
+modes:
+  - name: Dev
+    language: auto
+    translate: false
+    vocabulary:          # overrides the global list for this mode
+      - Dockerfile
+      - containerd
+      - etcd
+```
+
+Keep the list under ~150 words — whisper.cpp caps the initial prompt at 224 tokens, and the last entries carry the most weight if the list is truncated.
 
 ## Makefile Targets
 

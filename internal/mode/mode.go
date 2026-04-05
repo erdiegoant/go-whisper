@@ -4,10 +4,11 @@ import "log"
 
 // Mode describes a transcription mode.
 type Mode struct {
-	Name      string
-	Language  string // "auto", "es", etc.
-	Translate bool   // true = Whisper native ES→EN translation
-	Prompt    string // overrides llm.CleanupPrompt when non-empty; empty = use default
+	Name       string
+	Language   string   // "auto", "es", etc.
+	Translate  bool     // true = Whisper native ES→EN translation
+	Prompt     string   // overrides llm.CleanupPrompt when non-empty; empty = use default
+	Vocabulary []string // primes Whisper decoder via SetInitialPrompt; overrides global vocabulary when non-empty
 }
 
 // DefaultModes is the fallback used when config.yaml has no modes block.

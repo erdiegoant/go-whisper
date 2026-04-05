@@ -37,6 +37,7 @@ type raw struct {
 	Hotkeys                   hotkeysRaw `yaml:"hotkeys"`
 	Modes                     []modeRaw  `yaml:"modes"`
 	Prompt                    string     `yaml:"prompt"`
+	Vocabulary                []string   `yaml:"vocabulary"`
 }
 
 type claudeRaw struct {
@@ -58,10 +59,11 @@ type hotkeysRaw struct {
 }
 
 type modeRaw struct {
-	Name      string `yaml:"name"`
-	Language  string `yaml:"language"`
-	Translate bool   `yaml:"translate"`
-	Prompt    string `yaml:"prompt"`
+	Name       string   `yaml:"name"`
+	Language   string   `yaml:"language"`
+	Translate  bool     `yaml:"translate"`
+	Prompt     string   `yaml:"prompt"`
+	Vocabulary []string `yaml:"vocabulary"`
 }
 
 // Combos holds the parsed hotkey combos.
@@ -273,6 +275,13 @@ func (m *Manager) Prompt() string {
 	return m.cfg.Prompt
 }
 
+// Vocabulary returns the global vocabulary hint list for Whisper's initial prompt.
+func (m *Manager) Vocabulary() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg.Vocabulary
+}
+
 // LogLevel returns the configured log level string ("info" or "debug").
 func (m *Manager) LogLevel() string {
 	m.mu.RLock()
@@ -438,10 +447,11 @@ func parseModes(raw []modeRaw) []mode.Mode {
 			lang = "auto"
 		}
 		modes[i] = mode.Mode{
-			Name:      r.Name,
-			Language:  lang,
-			Translate: r.Translate,
-			Prompt:    r.Prompt,
+			Name:       r.Name,
+			Language:   lang,
+			Translate:  r.Translate,
+			Prompt:     r.Prompt,
+			Vocabulary: r.Vocabulary,
 		}
 	}
 	return modes
@@ -449,6 +459,23 @@ func parseModes(raw []modeRaw) []mode.Mode {
 
 // modesEqual reports whether two raw mode lists are identical.
 func modesEqual(a, b []modeRaw) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Name != b[i].Name ||
+			a[i].Language != b[i].Language ||
+			a[i].Translate != b[i].Translate ||
+			a[i].Prompt != b[i].Prompt ||
+			!stringSliceEqual(a[i].Vocabulary, b[i].Vocabulary) {
+			return false
+		}
+	}
+	return true
+}
+
+// stringSliceEqual reports whether two string slices are identical.
+func stringSliceEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -607,6 +634,14 @@ notifications_enabled: true
 # Leave commented out to use the built-in prompt.
 # prompt: "Your custom system prompt here. Reply with the cleaned text and nothing else."
 
+# Global vocabulary hints for Whisper — words listed here are more likely to appear in transcripts.
+# Useful for proper names, technical terms, and jargon Whisper might mishear.
+# Limit to ~150 words (whisper.cpp token cap). Per-mode vocabulary overrides this when set.
+# vocabulary:
+#   - Kubernetes
+#   - gRPC
+#   - Prometheus
+
 claude:
   api_key: ""             # leave empty to use ANTHROPIC_API_KEY environment variable
   model: "claude-haiku-4-5-20251001"
@@ -639,6 +674,14 @@ hotkeys:
 #     language: auto
 #     translate: false
 #     prompt: "Convert this dictation into a concise bullet point list. Preserve technical terms. Return only the result."
+#
+#   - name: Dev
+#     language: auto
+#     translate: false
+#     vocabulary:              # mode-specific vocabulary overrides the global vocabulary list
+#       - Kubernetes
+#       - Dockerfile
+#       - gRPC
 `
 	return os.WriteFile(path, []byte(template), 0o644)
 }

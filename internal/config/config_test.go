@@ -151,6 +151,86 @@ func TestApplyDefaults_soundExplicitTruePreserved(t *testing.T) {
 	}
 }
 
+// --- parseModes: vocabulary ---
+
+func TestParseModes_propagatesVocabulary(t *testing.T) {
+	vocab := []string{"Kubernetes", "gRPC"}
+	raw := []modeRaw{{Name: "Dev", Language: "en", Vocabulary: vocab}}
+	modes := parseModes(raw)
+	if len(modes[0].Vocabulary) != 2 {
+		t.Fatalf("expected 2 vocabulary entries, got %d", len(modes[0].Vocabulary))
+	}
+	if modes[0].Vocabulary[0] != "Kubernetes" || modes[0].Vocabulary[1] != "gRPC" {
+		t.Errorf("unexpected vocabulary: %v", modes[0].Vocabulary)
+	}
+}
+
+func TestParseModes_nilVocabularyPassedThrough(t *testing.T) {
+	raw := []modeRaw{{Name: "Standard"}}
+	modes := parseModes(raw)
+	if modes[0].Vocabulary != nil {
+		t.Errorf("expected nil vocabulary, got %v", modes[0].Vocabulary)
+	}
+}
+
+// --- modesEqual: vocabulary ---
+
+func TestModesEqual_sameVocabulary(t *testing.T) {
+	a := []modeRaw{{Name: "A", Vocabulary: []string{"foo", "bar"}}}
+	b := []modeRaw{{Name: "A", Vocabulary: []string{"foo", "bar"}}}
+	if !modesEqual(a, b) {
+		t.Error("expected modes with identical vocabulary to be equal")
+	}
+}
+
+func TestModesEqual_differentVocabulary(t *testing.T) {
+	a := []modeRaw{{Name: "A", Vocabulary: []string{"foo"}}}
+	b := []modeRaw{{Name: "A", Vocabulary: []string{"bar"}}}
+	if modesEqual(a, b) {
+		t.Error("expected modes with different vocabulary to not be equal")
+	}
+}
+
+func TestModesEqual_oneVocabularyNil(t *testing.T) {
+	a := []modeRaw{{Name: "A", Vocabulary: []string{"foo"}}}
+	b := []modeRaw{{Name: "A"}}
+	if modesEqual(a, b) {
+		t.Error("expected modes where one has vocabulary and other does not to not be equal")
+	}
+}
+
+// --- stringSliceEqual ---
+
+func TestStringSliceEqual_equal(t *testing.T) {
+	if !stringSliceEqual([]string{"a", "b"}, []string{"a", "b"}) {
+		t.Error("expected equal slices to match")
+	}
+}
+
+func TestStringSliceEqual_bothNil(t *testing.T) {
+	if !stringSliceEqual(nil, nil) {
+		t.Error("expected nil == nil")
+	}
+}
+
+func TestStringSliceEqual_differentLength(t *testing.T) {
+	if stringSliceEqual([]string{"a"}, []string{"a", "b"}) {
+		t.Error("expected different-length slices to not match")
+	}
+}
+
+func TestStringSliceEqual_differentContent(t *testing.T) {
+	if stringSliceEqual([]string{"a", "b"}, []string{"a", "c"}) {
+		t.Error("expected slices with different content to not match")
+	}
+}
+
+func TestStringSliceEqual_nilAndEmpty(t *testing.T) {
+	if !stringSliceEqual(nil, []string{}) {
+		t.Error("expected nil and empty slice to be equal")
+	}
+}
+
 // --- combosEqual ---
 
 func TestCombosEqual(t *testing.T) {
