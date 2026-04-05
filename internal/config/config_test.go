@@ -111,6 +111,36 @@ func TestApplyDefaults_doesNotOverrideSet(t *testing.T) {
 	}
 }
 
+// --- defaults: max_history_entries ---
+
+// MaxHistoryEntries uses the defaults struct (not applyDefaults) so that
+// max_history_entries: 0 in config means "no limit" rather than "use default".
+// These tests verify the defaults value and that applyDefaults leaves it untouched.
+
+func TestDefaults_maxHistoryEntriesIs500(t *testing.T) {
+	if defaults.MaxHistoryEntries != 500 {
+		t.Errorf("expected default MaxHistoryEntries 500, got %d", defaults.MaxHistoryEntries)
+	}
+}
+
+func TestApplyDefaults_doesNotOverrideMaxHistoryEntries(t *testing.T) {
+	// When a user explicitly sets max_history_entries: 0 (no limit), applyDefaults
+	// must not overwrite it — zero is a valid value meaning "keep all entries".
+	c := raw{MaxHistoryEntries: 0}
+	applyDefaults(&c)
+	if c.MaxHistoryEntries != 0 {
+		t.Errorf("expected MaxHistoryEntries 0 to be preserved, got %d", c.MaxHistoryEntries)
+	}
+}
+
+func TestApplyDefaults_maxHistoryEntriesCustomPreserved(t *testing.T) {
+	c := raw{MaxHistoryEntries: 100}
+	applyDefaults(&c)
+	if c.MaxHistoryEntries != 100 {
+		t.Errorf("expected MaxHistoryEntries 100 to be preserved, got %d", c.MaxHistoryEntries)
+	}
+}
+
 // --- applyDefaults: sound_enabled / notifications_enabled ---
 
 func TestApplyDefaults_soundAndNotificationsDefaultTrue(t *testing.T) {

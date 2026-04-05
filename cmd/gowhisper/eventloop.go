@@ -256,7 +256,7 @@ func handleToggle(
 						ProcessedText: text,
 						DurationMs:    time.Since(recordingStart).Milliseconds(),
 						Language:      m.Language,
-					}); err != nil {
+					}, cfg.MaxHistoryEntries()); err != nil {
 						log.Printf("history: write failed: %v", err)
 					}
 					refreshHistory()

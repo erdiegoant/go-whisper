@@ -29,6 +29,7 @@ type raw struct {
 	ModelsDir                 string     `yaml:"models_dir"`
 	MaxRecordingSeconds       int        `yaml:"max_recording_seconds"`
 	ModelUnloadTimeoutSeconds int        `yaml:"model_unload_timeout_seconds"`
+	MaxHistoryEntries         int        `yaml:"max_history_entries"`
 	LogLevel                  string     `yaml:"log_level"`
 	SoundEnabled              *bool      `yaml:"sound_enabled"`
 	NotificationsEnabled      *bool      `yaml:"notifications_enabled"`
@@ -117,6 +118,7 @@ var defaults = raw{
 	ModelsDir:                 "~/.config/gowhisper/models",
 	MaxRecordingSeconds:       120,
 	ModelUnloadTimeoutSeconds: 60,
+	MaxHistoryEntries:         500,
 	LogLevel:                  "info",
 	Claude: claudeRaw{
 		Model:          "claude-haiku-4-5-20251001",
@@ -294,6 +296,14 @@ func (m *Manager) MaxRecordingSeconds() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.cfg.MaxRecordingSeconds
+}
+
+// MaxHistoryEntries returns the maximum number of history entries to retain.
+// Zero means no limit.
+func (m *Manager) MaxHistoryEntries() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg.MaxHistoryEntries
 }
 
 // ModelUnloadTimeoutSeconds returns the idle duration in seconds before the
@@ -626,6 +636,9 @@ max_recording_seconds: 120
 # Unload the Whisper model from RAM after this many seconds of idle.
 # Set to 0 to keep the model loaded permanently.
 model_unload_timeout_seconds: 60
+# Maximum number of transcription history entries to keep. Oldest are pruned on each save.
+# Set to 0 to keep all entries indefinitely.
+# max_history_entries: 500
 log_level: info
 sound_enabled: true
 notifications_enabled: true

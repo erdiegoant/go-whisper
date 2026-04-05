@@ -131,6 +131,7 @@ language: auto
 models_dir: "~/.config/gowhisper/models"
 max_recording_seconds: 120
 model_unload_timeout_seconds: 60  # unload model from RAM after 60s idle; 0 = never unload
+# max_history_entries: 500         # keep newest N transcriptions; 0 = unlimited
 
 # LLM cleanup — pick one backend or omit both to disable cleanup entirely.
 # If both are set, Ollama takes priority.

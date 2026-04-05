@@ -41,7 +41,9 @@ func Open(dir string) (*Log, error) {
 }
 
 // Add writes a new entry. ProcessedText may equal RawText when no LLM ran.
-func (l *Log) Add(e Entry) error {
+// If maxEntries > 0, oldest entries beyond the limit are pruned after the insert.
+// Pass 0 to disable pruning.
+func (l *Log) Add(e Entry, maxEntries int) error {
 	_, err := l.db.Exec(`
 		INSERT INTO transcriptions
 			(timestamp, mode_name, prompt_used, raw_text, processed_text, duration_ms, language)
@@ -54,6 +56,14 @@ func (l *Log) Add(e Entry) error {
 		e.DurationMs,
 		e.Language,
 	)
+	if err != nil || maxEntries <= 0 {
+		return err
+	}
+	_, err = l.db.Exec(`
+		DELETE FROM transcriptions
+		WHERE id NOT IN (
+			SELECT id FROM transcriptions ORDER BY timestamp DESC LIMIT ?
+		)`, maxEntries)
 	return err
 }
 
