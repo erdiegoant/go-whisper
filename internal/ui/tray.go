@@ -80,6 +80,20 @@ func (t *Tray) SetLoading(modeName string) {
 	systray.SetTooltip("GoWhisper — loading model…")
 }
 
+// AddCLIPathItem adds an "Add CLI to Path" menu item. onClick is called when
+// the user clicks it. The returned function hides the item — call it once the
+// symlink is confirmed present.
+// Must be called after Run's onReady fires.
+func (t *Tray) AddCLIPathItem(onClick func()) func() {
+	item := systray.AddMenuItem("Add CLI to Path", "Create /usr/local/bin/gowhisper symlink")
+	go func() {
+		for range item.ClickedCh {
+			onClick()
+		}
+	}()
+	return func() { item.Hide() }
+}
+
 // AddOpenConfigItem adds an "Open Config" menu item that opens path in the
 // default application for .yaml files.
 // Must be called after Run's onReady fires.

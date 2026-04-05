@@ -17,7 +17,7 @@ CGO_ENV       := CGO_ENABLED=1 \
 
 BUILD_FLAGS   := -buildvcs=false -ldflags "-extldflags '$(EXT_LDFLAGS)'"
 
-.PHONY: all build run test install whisper download-model clean
+.PHONY: all build run test install install-cli whisper download-model clean
 
 all: build
 
@@ -60,6 +60,11 @@ install: build
 	@echo "Installing GoWhisper.app to /Applications..."
 	cp -r GoWhisper.app /Applications/GoWhisper.app
 	@echo "Done."
+
+## Create /usr/local/bin/gowhisper symlink pointing to the installed app binary
+install-cli:
+	ln -sf /Applications/GoWhisper.app/Contents/MacOS/gowhisper /usr/local/bin/gowhisper
+	@echo "Symlink created: /usr/local/bin/gowhisper"
 
 ## Download the configured GGML model (default: small)
 download-model:

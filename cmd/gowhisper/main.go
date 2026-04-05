@@ -7,6 +7,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -121,6 +122,20 @@ func main() {
 	tray := ui.New()
 	tray.Run(func() {
 		tray.AddOpenConfigItem(configPath)
+
+		if _, err := exec.LookPath("gowhisper"); err != nil {
+			var hideCLIItem func()
+			hideCLIItem = tray.AddCLIPathItem(func() {
+				const symlink = `ln -sf /Applications/GoWhisper.app/Contents/MacOS/gowhisper /usr/local/bin/gowhisper`
+				script := `do shell script "` + symlink + `" with administrator privileges`
+				if out, err := exec.Command("osascript", "-e", script).CombinedOutput(); err != nil {
+					log.Printf("cli: symlink failed: %v — %s", err, out)
+					return
+				}
+				log.Println("cli: /usr/local/bin/gowhisper symlink created")
+				hideCLIItem()
+			})
+		}
 
 		cleanupCh := make(chan bool, 2)
 		cleanupEnabled := true
