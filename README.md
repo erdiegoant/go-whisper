@@ -307,6 +307,10 @@ phases/               # Development plan (phase-by-phase)
 | 10 | Local LLM backend (Ollama) | ✅ Done |
 | 11 | Optional extras (retention ✅, clear ✅, CLI ✅, transcribe from file ⏳) | 🔄 In progress |
 
+## Acknowledgements
+
+GoWhisper is built on top of [whisper.cpp](https://github.com/ggerganov/whisper.cpp) by [Georgi Gerganov](https://github.com/ggerganov), which provides the fast, Metal-accelerated speech recognition that powers this app. Without it, none of this would be possible.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for full text, including third-party notices for whisper.cpp.
